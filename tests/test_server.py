@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import time
-from local_server import LocalServer
+from chargepal_local_server.local_server import LocalServer
 
 
 class TestServer(LocalServer):
