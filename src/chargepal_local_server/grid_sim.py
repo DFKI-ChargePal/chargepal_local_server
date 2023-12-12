@@ -7,23 +7,27 @@ It connects with robots and maintains their representations
 """
 
 from typing import Dict, List, Optional
+from enum import Enum
 import re
 import time
 from chargepal_local_server.local_server import LocalServer
 
 
-class Tile:
+class TileType(Enum):
     BORDER = "X"
+    WALL = "X"
     FREE = " "
     GOAL = "*"
 
-    def __init__(self, x: int, y: int, char: str) -> None:
+
+class Tile:
+    def __init__(self, x: int, y: int, tile_type: TileType) -> None:
         self.x, self.y = x, y
-        self.char = char
+        self.type = tile_type
         self._mobile: Optional[Mobile] = None
 
     def __str__(self) -> str:
-        return str(self.mobile) if self.mobile else self.char
+        return str(self.mobile) if self.mobile else self.type.value
 
     @property
     def mobile(self) -> Optional["Mobile"]:
@@ -35,7 +39,7 @@ class Tile:
         self._mobile = value
 
     def is_free(self) -> bool:
-        return self.char == Tile.FREE and not self._mobile
+        return self.type == TileType.FREE and not self._mobile
 
 
 class Area:
@@ -50,7 +54,7 @@ class Area:
                 Tile(
                     x,
                     y,
-                    Tile.FREE if self.is_inside(x, y) else Tile.BORDER,
+                    TileType.FREE if self.is_inside(x, y) else TileType.BORDER,
                 )
                 for y in range(self.outer_height)
             ]
