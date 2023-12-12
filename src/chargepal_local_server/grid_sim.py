@@ -1,13 +1,15 @@
+#!/usr/bin/env python3
+"""
+Simple grid-based simulation with str presentations.
+
+It connects with robots and maintains their representations
+ over connection losses.
+"""
+
 from typing import Dict, List, Optional
 import re
 import time
 from chargepal_local_server.local_server import LocalServer
-
-"""
-Simple grid-based simulation with str presentations.
-
-It connects with robots and maintains their representations over connection losses.
-"""
 
 
 class Tile:
