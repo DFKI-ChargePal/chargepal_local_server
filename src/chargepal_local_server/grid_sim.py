@@ -131,7 +131,7 @@ class Sim(LocalServer):
 
     def handle_message(self, message: str) -> None:
         tokens: List[str] = []
-        if self.match_into_tokens(r"REQUEST_PORT (\d+)", message, tokens):
+        if self.match_into_tokens(r"(\d+) REQUEST_PORT", message, tokens):
             port = int(tokens[0])
             # Connect with robot on port.
             self.connect(port)

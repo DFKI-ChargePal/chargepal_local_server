@@ -24,8 +24,8 @@ if __name__ == "__main__":
                 print(message)
 
                 tokens = message.split()
-                if tokens[0] == "REQUEST_PORT":
-                    server.connect(int(tokens[1]))
+                if len(tokens) == 2 and tokens[1] == "REQUEST_PORT":
+                    server.connect(int(tokens[0]))
                     server.print_robot_connections()
             if time.time() >= next_time:
                 if server.robot_connections:
