@@ -19,8 +19,8 @@ if __name__ == "__main__":
     next_time = time.time() + PING_INTERVAL
     while server.active:
         try:
-            if server.messages:
-                message = server.messages.pop(0)
+            message = server.wait_for_message(0.1)
+            if message:
                 print(message)
 
                 tokens = message.split()
@@ -41,6 +41,5 @@ if __name__ == "__main__":
                         print(e)
                         server.print_robot_connections()
                 next_time += PING_INTERVAL
-            time.sleep(0.1)
         except KeyboardInterrupt:
             server.shutdown()

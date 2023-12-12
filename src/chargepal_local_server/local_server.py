@@ -1,7 +1,8 @@
-from typing import Dict, List, Type
+from typing import Deque, Dict, Optional, Type
 from types import TracebackType
-from threading import Thread
+from collections import deque
 from multiprocessing.connection import Client, Connection, Listener
+from threading import Condition, Thread
 
 
 class LocalServer:
@@ -9,7 +10,8 @@ class LocalServer:
 
     def __init__(self) -> None:
         self.active = True
-        self.messages: List[str] = []
+        self.messages: Deque[str] = deque()
+        self.condition = Condition()
         self.robot_connections: Dict[int, Connection] = {}
         self.listener = Listener(self.SERVER_ADDRESS)
         self.listener_thread = Thread(target=self.listen)
@@ -36,7 +38,11 @@ class LocalServer:
         while self.active:
             connection = self.listener.accept()
             try:
-                self.messages.append(str(connection.recv()))
+                message = str(connection.recv())
+                self.condition.acquire()
+                self.messages.append(message)
+                self.condition.notify_all()
+                self.condition.release()
             except EOFError:
                 pass
             finally:
@@ -53,6 +59,14 @@ class LocalServer:
         except BrokenPipeError as e:
             del self.robot_connections[port]
             raise e
+
+    def wait_for_message(self, timeout: Optional[float] = None) -> Optional[str]:
+        """Wait for message or until a timeout occurs."""
+        self.condition.acquire()
+        self.condition.wait(timeout)
+        message = self.messages.popleft() if self.messages else None
+        self.condition.release()
+        return message
 
     def shutdown(self) -> None:
         if self.active:
