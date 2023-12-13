@@ -11,13 +11,13 @@ class LocalServer:
 
     def __init__(self) -> None:
         self.active = True
-        self.messages: Deque[str] = deque()
-        self.message_handlers: Dict[str, Callable[[Tuple[str]], object]] = {}
-        self.condition = Condition()
+        self._messages: Deque[str] = deque()
+        self._message_handlers: Dict[str, Callable[[Tuple[str]], object]] = {}
+        self._condition = Condition()
         self.robot_connections: Dict[int, Connection] = {}
-        self.listener = Listener(self.SERVER_ADDRESS)
-        self.listener_thread = Thread(target=self.listen)
-        self.listener_thread.start()
+        self._listener = Listener(self.SERVER_ADDRESS)
+        self._listener_thread = Thread(target=self.listen)
+        self._listener_thread.start()
 
     def __enter__(self) -> "LocalServer":
         return self
@@ -38,13 +38,13 @@ class LocalServer:
          Synchronize the incoming messages into a message queue.
         """
         while self.active:
-            connection = self.listener.accept()
+            connection = self._listener.accept()
             try:
                 message = str(connection.recv())
-                self.condition.acquire()
-                self.messages.append(message)
-                self.condition.notify_all()
-                self.condition.release()
+                self._condition.acquire()
+                self._messages.append(message)
+                self._condition.notify_all()
+                self._condition.release()
             except EOFError:
                 pass
             finally:
@@ -64,16 +64,16 @@ class LocalServer:
 
     def wait_for_message(self, timeout: Optional[float] = None) -> Optional[str]:
         """Wait for message or until a timeout occurs."""
-        self.condition.acquire()
-        self.condition.wait(timeout)
-        message = self.messages.popleft() if self.messages else None
-        self.condition.release()
+        self._condition.acquire()
+        self._condition.wait(timeout)
+        message = self._messages.popleft() if self._messages else None
+        self._condition.release()
         return message
 
     def add_message_handler(
         self, pattern: str, handler: Callable[[Tuple[str]], object]
     ) -> None:
-        self.message_handlers[pattern] = handler
+        self._message_handlers[pattern] = handler
 
     def add_message_handlers(
         self, message_handlers: Dict[str, Callable[[Tuple[str]], object]]
@@ -82,7 +82,7 @@ class LocalServer:
             self.add_message_handler(pattern, handler)
 
     def handle_message(self, message: str) -> None:
-        for pattern, handler in self.message_handlers.items():
+        for pattern, handler in self._message_handlers.items():
             match_result = re.match(pattern, message)
             if match_result:
                 handler(match_result.groups())
@@ -93,5 +93,5 @@ class LocalServer:
             Client(self.SERVER_ADDRESS).close()
             for connection in self.robot_connections.values():
                 connection.close()
-            self.listener.close()
-            self.listener_thread.join()
+            self._listener.close()
+            self._listener_thread.join()
