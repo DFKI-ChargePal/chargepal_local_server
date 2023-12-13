@@ -6,9 +6,8 @@ It connects with robots and maintains their representations
  over connection losses.
 """
 
-from typing import Dict, List, Optional
+from typing import Dict, Optional, Tuple
 from enum import Enum
-import re
 import time
 from chargepal_local_server.local_server import LocalServer
 
@@ -111,45 +110,36 @@ class Sim(LocalServer):
         self.tick_count = 0
         self.print_area()
         self.next_time = time.time() + self.TICK_INTERVAL
+        self.add_message_handlers(
+            {
+                r"(\d+) REQUEST_PORT": self.on_request_port,
+                r"(\d+) POS (\d+) (\d+)": self.on_pos,
+            }
+        )
 
     def print_area(self) -> None:
         print(str(self.area), self.tick_count)
 
-    def match_into_tokens(self, pattern: str, string: str, tokens: List[str]) -> bool:
-        """
-        Try to match string against pattern and return whether successful.
-         Replace tokens by match results.
-        """
-        tokens.clear()
-        if not pattern.endswith("$"):
-            pattern += "$"
-        match_result = re.match(pattern, string)
-        if match_result:
-            tokens.extend(match_result.groups())
-            return True
-        return False
+    def on_request_port(self, tokens: Tuple[str]) -> None:
+        port = int(tokens[0])
+        # Connect with robot on port.
+        self.connect(port)
+        if port in self.robots.keys():
+            self.robots[port].is_connected = True
+        else:
+            self.robots[port] = Robot(self.area, len(self.robots) + 1, 1)
 
-    def handle_message(self, message: str) -> None:
-        tokens: List[str] = []
-        if self.match_into_tokens(r"(\d+) REQUEST_PORT", message, tokens):
-            port = int(tokens[0])
-            # Connect with robot on port.
-            self.connect(port)
-            if port in self.robots.keys():
-                self.robots[port].is_connected = True
-            else:
-                self.robots[port] = Robot(self.area, len(self.robots) + 1, 1)
-        elif self.match_into_tokens(r"(\d+) POS (\d+) (\d+)", message, tokens):
-            robot_id, x, y = list(map(int, tokens))
-            # Update robot_id's (x, y) position.
-            if (
-                robot_id in self.robots.keys()
-                and self.area.is_inside(x, y)
-                and self.area.tiles[x][y].is_free()
-            ):
-                robot = self.robots[robot_id]
-                if robot.is_connected:
-                    self.robots[robot_id].move_to(x, y)
+    def on_pos(self, tokens: Tuple[str]) -> None:
+        robot_id, x, y = list(map(int, tokens))
+        # Update robot_id's (x, y) position.
+        if (
+            robot_id in self.robots.keys()
+            and self.area.is_inside(x, y)
+            and self.area.tiles[x][y].is_free()
+        ):
+            robot = self.robots[robot_id]
+            if robot.is_connected:
+                self.robots[robot_id].move_to(x, y)
 
     def tick(self) -> None:
         self.tick_count += 1
@@ -159,9 +149,9 @@ class Sim(LocalServer):
     def run(self) -> None:
         try:
             while self.active:
-                time.sleep(self.next_time - time.time())
-                if self.messages:
-                    self.handle_message(self.messages.pop(0))
+                message = self.wait_for_message(self.next_time - time.time())
+                if message:
+                    self.handle_message(message)
                 for port in list(self.robot_connections.keys()):
                     try:
                         self.send(port, "PING")

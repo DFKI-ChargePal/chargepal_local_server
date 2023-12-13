@@ -1,8 +1,9 @@
-from typing import Deque, Dict, Optional, Type
+from typing import Callable, Deque, Dict, Optional, Tuple, Type
 from types import TracebackType
 from collections import deque
 from multiprocessing.connection import Client, Connection, Listener
 from threading import Condition, Thread
+import re
 
 
 class LocalServer:
@@ -11,6 +12,7 @@ class LocalServer:
     def __init__(self) -> None:
         self.active = True
         self.messages: Deque[str] = deque()
+        self.message_handlers: Dict[str, Callable[[Tuple[str]], object]] = {}
         self.condition = Condition()
         self.robot_connections: Dict[int, Connection] = {}
         self.listener = Listener(self.SERVER_ADDRESS)
@@ -67,6 +69,23 @@ class LocalServer:
         message = self.messages.popleft() if self.messages else None
         self.condition.release()
         return message
+
+    def add_message_handler(
+        self, pattern: str, handler: Callable[[Tuple[str]], object]
+    ) -> None:
+        self.message_handlers[pattern] = handler
+
+    def add_message_handlers(
+        self, message_handlers: Dict[str, Callable[[Tuple[str]], object]]
+    ) -> None:
+        for pattern, handler in message_handlers.items():
+            self.add_message_handler(pattern, handler)
+
+    def handle_message(self, message: str) -> None:
+        for pattern, handler in self.message_handlers.items():
+            match_result = re.match(pattern, message)
+            if match_result:
+                handler(match_result.groups())
 
     def shutdown(self) -> None:
         if self.active:
