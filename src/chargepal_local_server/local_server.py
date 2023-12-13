@@ -52,13 +52,16 @@ class LocalServer:
 
     def connect(self, port: int) -> None:
         """Connect to robot client and store connection."""
-        self.robot_connections[port] = Client((self.SERVER_ADDRESS[0], port))
+        try:
+            self.robot_connections[port] = Client((self.SERVER_ADDRESS[0], port))
+        except ConnectionRefusedError as e:
+            raise e
 
     def send(self, port: int, message: str) -> None:
         """Send message to robot at port."""
         try:
             self.robot_connections[port].send(message)
-        except BrokenPipeError as e:
+        except (BrokenPipeError, ConnectionResetError) as e:
             del self.robot_connections[port]
             raise e
 

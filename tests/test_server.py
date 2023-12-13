@@ -15,7 +15,6 @@ if __name__ == "__main__":
         "Listening for messages and occassionally sending one (press <Ctrl-C> to stop) ..."
     )
     server = TestServer()
-    connection_index = 0
     next_time = time.time() + PING_INTERVAL
     while server.active:
         try:
@@ -28,18 +27,15 @@ if __name__ == "__main__":
                     server.connect(int(tokens[0]))
                     server.print_robot_connections()
             if time.time() >= next_time:
-                if server.robot_connections:
-                    connection_index += 1
-                    if connection_index >= len(server.robot_connections):
-                        connection_index = 0
-                    try:
-                        server.send(
-                            list(server.robot_connections.keys())[connection_index],
-                            "PING",
-                        )
-                    except BrokenPipeError as e:
-                        print(e)
-                        server.print_robot_connections()
                 next_time += PING_INTERVAL
+                for port in server.robot_connections.keys():
+                    server.send(port, "PING")
+        except (
+            BrokenPipeError,
+            ConnectionRefusedError,
+            ConnectionResetError,
+        ) as e:
+            print(e)
+            server.print_robot_connections()
         except KeyboardInterrupt:
             server.shutdown()
