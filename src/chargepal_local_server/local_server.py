@@ -7,7 +7,7 @@ import re
 
 
 class LocalServer:
-    SERVER_ADDRESS = ("localhost", 1024)
+    SERVER_ADDRESS = ("192.168.158.25", 9000)
 
     def __init__(self) -> None:
         self.active = True
@@ -53,7 +53,8 @@ class LocalServer:
     def connect(self, port: int) -> None:
         """Connect to robot client and store connection."""
         try:
-            self.robot_connections[port] = Client((self.SERVER_ADDRESS[0], port))
+            # Note: Using with Jetson Orin IP address in Agro-Technicum for now.
+            self.robot_connections[port] = Client(("192.168.158.33", port))
         except ConnectionRefusedError as e:
             raise e
 
