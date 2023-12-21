@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package local_server;
+
+service LocalServer {
+  rpc ConnectClient(PortInfo) returns (EmptyMessage) {}
+  rpc SendTextMessage(TextMessage) returns (EmptyMessage) {}
+  rpc UpdatePos(Pos) returns (stream Pos) {}
+}
+
+service RobotClient {
+  rpc Ping(EmptyMessage) returns (EmptyMessage) {}
+}
+
+message EmptyMessage {
+
+}
+
+message PortInfo {
+  int32 port = 1;
+}
+
+message TextMessage {
+    string text = 1;
+}
+
+message Point {
+    int32 x = 1;
+    int32 y = 2;
+}
+
+message Pos {
+    string name = 1;
+    Point point = 2;
+}
