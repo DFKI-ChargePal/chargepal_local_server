@@ -1,4 +1,4 @@
-from typing import Any, Iterator, Type, TypeVar
+from typing import Any, Iterator, Optional, Type, TypeVar
 from concurrent.futures import ThreadPoolExecutor
 import grpc
 import logging
@@ -17,7 +17,7 @@ T = TypeVar("T", bound="LocalServer")
 
 
 class LocalServer(LocalServerServicer):
-    IP_ADDRESS = "192.168.158.25"
+    IP_ADDRESS = "localhost"
     PORT = 9000
 
     def __init__(self, grpc_server: grpc.Server) -> None:
@@ -25,12 +25,16 @@ class LocalServer(LocalServerServicer):
         self.grpc_server = grpc_server  # Note: Must be refereced for persistence.
 
     @classmethod
-    def serve(cls: Type[T]) -> T:
+    def serve(
+        cls: Type[T], ip_address: Optional[str] = None, port: Optional[int] = None
+    ) -> T:
         logging.basicConfig()
         grpc_server = grpc.server(ThreadPoolExecutor(max_workers=42))
         server = cls(grpc_server)
         local_server_pb2_grpc.add_LocalServerServicer_to_server(server, grpc_server)
-        grpc_server.add_insecure_port(f"{cls.IP_ADDRESS}:{cls.PORT}")
+        grpc_server.add_insecure_port(
+            f"{ip_address if ip_address else cls.IP_ADDRESS}:{port if port else cls.PORT}"
+        )
         grpc_server.start()
         return server
 
