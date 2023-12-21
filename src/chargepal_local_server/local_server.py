@@ -3,7 +3,13 @@ from concurrent.futures import ThreadPoolExecutor
 import grpc
 import logging
 from chargepal_local_server import local_server_pb2_grpc
-from chargepal_local_server.local_server_pb2 import EmptyMessage, Pos, TextMessage
+from chargepal_local_server.local_server_pb2 import (
+    EmptyMessage,
+    Job,
+    Pos,
+    RobotID,
+    TextMessage,
+)
 from chargepal_local_server.local_server_pb2_grpc import LocalServerServicer
 
 
@@ -41,3 +47,11 @@ class LocalServer(LocalServerServicer):
         Let robot client update its position and get position updates
         for the other robots from the server.
         """
+
+    def FetchJob(self, request: RobotID, context: Any) -> Job:
+        return Job(
+            job_type="BRING_CHARGER",
+            charger="BAT_1",
+            source_station="ADS_1",
+            target_station="ADS_2",
+        )
