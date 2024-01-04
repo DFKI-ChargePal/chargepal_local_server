@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+message Request {
+  string robot_name = 1;
+  string request_name = 2;
+  string rdb_data = 3;
+  string table_name = 4;
+}
+
+message Response_UpdateRDB {
+    bytes ldb = 1;
+  }
+
+message Response_Job {
+    string job_type = 1;
+    string robot_name = 2;
+    string charger = 3;
+    string source_station = 4;
+    string target_station = 5;
+}
+
+message Response_FetchJob {
+    string message = 1;
+    Response_Job job = 2;
+    
+}
+
+message Response_FreeStation {
+  string station_name = 1;
+}
+
+message Response_PushToLDB {
+  bool success = 1;
+  
+}
+
+message Response_ResetStationBlocker {
+  bool success = 1;
+  
+}
+
+message Response_UpdateJobMonitor {
+  bool success = 1;
+  
+}
+
+message Response_OperationTime {
+  int64 msec = 1;
+  
+}
+
+
+service Communication {
+  rpc UpdateRDB(Request) returns (Response_UpdateRDB);
+  rpc UpdateJobMonitor(Request) returns (Response_UpdateJobMonitor);
+  rpc FetchJob(Request) returns (Response_FetchJob);
+  rpc AskFreeStation(Request) returns (Response_FreeStation);
+  rpc PushToLDB(Request) returns (Response_PushToLDB);
+  rpc ResetStationBlocker(Request) returns (Response_ResetStationBlocker);
+  rpc OperationTime(Request) returns (Response_OperationTime);
+  
+}
