@@ -17,12 +17,13 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def __init__(self):
 
         self.request_lock = threading.Lock()
-        
+        self.job_success_status = True
 
     def process_request(self, request):
         with self.request_lock:
 
             if request.request_name == "fetch_job":
+                self.job_success_status = False
                 job_details = job.fetch_job(request.robot_name)
                 time.sleep(5)
                 response = communication_pb2.Response_FetchJob(message="finished processing",job=communication_pb2.Response_Job(**job_details))
@@ -48,8 +49,8 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
                 response = communication_pb2.Response_PushToLDB(success=status)
             
             elif request.request_name == "update_job_monitor":
-                status = True #ToDo: update job monitor
-                response = communication_pb2.Response_UpdateJobMonitor(success=status)
+                self.job_success_status = True #ToDo: update job monitor
+                response = communication_pb2.Response_UpdateJobMonitor(success=self.job_success_status)
             
             elif request.request_name == "operation_time":
                 requested_cart = request.cart_name
