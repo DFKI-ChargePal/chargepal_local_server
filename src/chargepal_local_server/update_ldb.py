@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import List, Tuple
 import sqlite3
 import ast
 import os
@@ -6,9 +7,8 @@ import os
 current_directory = os.getcwd()
 
 
-def update(table_name, string_rdb_data):
-
-    rows_data = ast.literal_eval(string_rdb_data)
+def update(table_name: str, string_rdb_data: str) -> None:
+    rows_data: List[Tuple[object, ...]] = ast.literal_eval(string_rdb_data)
 
     with sqlite3.connect(current_directory + "/db/ldb.db") as ldb_connection:
         ldb_cursor = ldb_connection.cursor()

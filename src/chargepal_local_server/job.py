@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 from server import CommunicationServicer
 
-job_details = ""
 
-
-def fetch_job(robot_name):
+def fetch_job(robot_name: str) -> str:
     server_obj = CommunicationServicer()
     job_success = server_obj.job_success_status
+    job_details = ""
 
     if job_success:
-
         job_type = input("Enter job type: ")
         charger = input("Enter charger name: ")
         source_station = input("Enter source_station name: ")

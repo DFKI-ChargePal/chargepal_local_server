@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from typing import List, Tuple
 import sqlite3
 import re
 
@@ -6,18 +7,18 @@ import re
 connection = sqlite3.connect("db/ldb.db")
 cursor = connection.cursor()
 cursor.execute("SELECT count FROM env_info WHERE info = 'robots_count';")
-robots_count = cursor.fetchone()[0]
-robot_bcs_blocker = [[] for _ in range(robots_count)]
-robot_bws_blocker = [[] for _ in range(robots_count)]
+robots_count: int = cursor.fetchone()[0]
+robot_bcs_blocker: List[List[str]] = [[] for _ in range(robots_count)]
+robot_bws_blocker: List[List[str]] = [[] for _ in range(robots_count)]
 
 robot_columns = ["robot_location", "ongoing_action"]
 
 
-def search_bcs(robot_name):
+def search_bcs(robot_name: str) -> str:
     global robot_bcs_blocker
     free_BCS = ""
-    blocked_BCS = []
-    available_BCS = []
+    blocked_BCS: List[int] = []
+    available_BCS: List[str] = []
 
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
@@ -25,7 +26,7 @@ def search_bcs(robot_name):
     cursor.execute(
         "SELECT robot_location FROM robot_info WHERE robot_name = robot_name;"
     )
-    robot_position = cursor.fetchone()[0]
+    robot_position: str = cursor.fetchone()[0]
     if "BCS_" in robot_position:
         bcs_number = re.search(r"\d+", robot_position).group()
         bcs_station = "BCS_" + str(bcs_number)
@@ -35,7 +36,7 @@ def search_bcs(robot_name):
     with connection:
         columns_str = ", ".join(robot_columns)
         cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values = cursor.fetchall()
+        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
         for each_row in robot_column_values:
             for value in each_row:
                 if "BCS_" in value:
@@ -43,7 +44,7 @@ def search_bcs(robot_name):
                     blocked_BCS.append(int(bcs_number))
 
         cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values = cursor.fetchall()
+        cart_column_values: List[Tuple[str, ...]]  = cursor.fetchall()
 
         for each_row in cart_column_values:
             for value in each_row:
@@ -52,7 +53,7 @@ def search_bcs(robot_name):
                     blocked_BCS.append(int(bcs_number))
 
         cursor.execute("SELECT count FROM env_info WHERE info = 'BCS_count';")
-        bcs_count = cursor.fetchone()[0]
+        bcs_count: int = cursor.fetchone()[0]
         for bcs in range(1, bcs_count + 1):
             if bcs not in blocked_BCS:
                 available_BCS.append("BCS_" + str(bcs))
@@ -67,11 +68,11 @@ def search_bcs(robot_name):
         return free_BCS
 
 
-def search_bws(robot_name):
+def search_bws(robot_name: str) -> str:
     global robot_bws_blocker
     free_BWS = ""
-    blocked_BWS = []
-    available_BWS = []
+    blocked_BWS: List[int] = []
+    available_BWS: List[str] = []
 
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
@@ -79,7 +80,7 @@ def search_bws(robot_name):
     cursor.execute(
         "SELECT robot_location FROM robot_info WHERE robot_name =robot_name;"
     )
-    robot_position = cursor.fetchone()[0]
+    robot_position: str = cursor.fetchone()[0]
     if "BWS_" in robot_position:
         bws_number = re.search(r"\d+", robot_position).group()
         bws_station = "BWS_" + str(bws_number)
@@ -89,7 +90,7 @@ def search_bws(robot_name):
     with connection:
         columns_str = ", ".join(robot_columns)
         cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values = cursor.fetchall()
+        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
         for each_row in robot_column_values:
             for value in each_row:
                 if "BWS_" in value:
@@ -97,7 +98,7 @@ def search_bws(robot_name):
                     blocked_BWS.append(int(bws_number))
 
         cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values = cursor.fetchall()
+        cart_column_values: List[Tuple[str, ...]] = cursor.fetchall()
 
         for each_row in cart_column_values:
             for value in each_row:
@@ -106,7 +107,7 @@ def search_bws(robot_name):
                     blocked_BWS.append(int(bws_number))
 
         cursor.execute("SELECT count FROM env_info WHERE info = 'BWS_count';")
-        bws_count = cursor.fetchone()[0]
+        bws_count: int = cursor.fetchone()[0]
         for bws in range(1, bws_count + 1):
             if bws not in blocked_BWS:
                 available_BWS.append("BWS_" + str(bws))

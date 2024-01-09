@@ -65,7 +65,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         return response
 
     def ResetStationBlocker(
-        self, request: Request, context
+        self, request: Request, context: Any
     ) -> Response_ResetStationBlocker:
         with self.request_lock:
             if request.request_name == "reset_bcs_blocker":
