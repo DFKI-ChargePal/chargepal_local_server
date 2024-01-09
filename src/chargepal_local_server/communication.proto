@@ -22,7 +22,7 @@ message Response_Job {
 message Response_FetchJob {
     string message = 1;
     Response_Job job = 2;
-    
+
 }
 
 message Response_FreeStation {
@@ -31,22 +31,22 @@ message Response_FreeStation {
 
 message Response_PushToLDB {
   bool success = 1;
-  
+
 }
 
 message Response_ResetStationBlocker {
   bool success = 1;
-  
+
 }
 
 message Response_UpdateJobMonitor {
   bool success = 1;
-  
+
 }
 
 message Response_OperationTime {
   int64 msec = 1;
-  
+
 }
 
 
@@ -58,5 +58,5 @@ service Communication {
   rpc PushToLDB(Request) returns (Response_PushToLDB);
   rpc ResetStationBlocker(Request) returns (Response_ResetStationBlocker);
   rpc OperationTime(Request) returns (Response_OperationTime);
-  
+
 }
