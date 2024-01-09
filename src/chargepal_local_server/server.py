@@ -19,8 +19,6 @@ from communication_pb2 import (
     Response_UpdateRDB,
 )
 
-_ONE_DAY_IN_SECONDS = 60 * 60 * 24
-
 
 class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def __init__(self):
@@ -103,22 +101,19 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         return response
 
 
-def server():
+def server() -> None:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
     communication_pb2_grpc.add_CommunicationServicer_to_server(
         CommunicationServicer(), server
     )
     server.add_insecure_port("[::]:50059")
     server.start()
-
+    stop_event = threading.Event()
     try:
-        while True:
-            time.sleep(_ONE_DAY_IN_SECONDS)
+        stop_event.wait()
     except KeyboardInterrupt:
         server.stop(0)
 
 
 if __name__ == "__main__":
-    server_thread = threading.Thread(target=server)
-    server_thread.start()
-    server_thread.join()
+    server()
