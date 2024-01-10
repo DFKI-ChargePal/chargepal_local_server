@@ -39,7 +39,6 @@ robot_columns = ["robot_location", "ongoing_action"]
 def search_free_station(robot_name: str, station_prefix: str) -> str:
     free_station = ""
     blocked_stations: Set[str] = set()
-    available_stations: List[str] = []
 
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
@@ -62,15 +61,12 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
                 if station_prefix in value:
                     blocked_stations.add(station_name)
 
+        # Choosing the first available station that is not in the robot's blocker
         station_count = fetch_env_count(station_prefix + "count", cursor)
         for station_number in range(1, station_count + 1):
-            if f"{station_prefix}{station_number}" not in blocked_stations:
-                available_stations.append(f"{station_prefix}{station_number}")
-
-        # Choosing the first value in available_stations that is not in the robot's blocker
-        for choice in available_stations:
-            if choice not in robot_blockers[station_prefix][robot_name]:
-                free_station = choice
+            station_name = f"{station_prefix}{station_number}"
+            if station_name not in blocked_stations and station_name not in robot_blockers[station_prefix][robot_name]:
+                free_station = station_name
                 robot_blockers[station_prefix][robot_name].add(free_station)
                 break
 
