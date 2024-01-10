@@ -1,13 +1,38 @@
 #!/usr/bin/env python3
-from typing import List, Tuple
+from typing import Iterable, List, Tuple
 import sqlite3
 import re
 
 
 connection = sqlite3.connect("db/ldb.db")
 cursor = connection.cursor()
-cursor.execute("SELECT count FROM env_info WHERE info = 'robots_count';")
-robots_count: int = cursor.fetchone()[0]
+
+
+def fetch_env_count(count_name: str, cursor: sqlite3.Cursor) -> int:
+    """Return count for count_name from env_info of ldb."""
+    cursor.execute(f"SELECT count FROM env_info WHERE info = '{count_name}';")
+    return int(cursor.fetchone()[0])
+
+
+def fetch_robot_location(robot_name: str, cursor: sqlite3.Cursor) -> str:
+    """Return robot location for robot_name from robot_info of ldb."""
+    cursor.execute(
+        f"SELECT robot_location FROM robot_info WHERE robot_name = '{robot_name}'"
+    )
+    return str(cursor.fetchone()[0])
+
+
+def fetch_all(
+    columns_str: str | Iterable[str], table: str, cursor: sqlite3.Cursor
+) -> List[Tuple[str, ...]]:
+    """Return all entries for columns_str from table of ldb."""
+    if not isinstance(columns_str, str):
+        columns_str = ", ".join(columns_str)
+    cursor.execute(f"SELECT '{columns_str}' FROM {table};")
+    return cursor.fetchall()
+
+
+robots_count = fetch_env_count("robots_count", cursor)
 robot_bcs_blocker: List[List[str]] = [[] for _ in range(robots_count)]
 robot_bws_blocker: List[List[str]] = [[] for _ in range(robots_count)]
 
@@ -23,37 +48,29 @@ def search_bcs(robot_name: str) -> str:
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
     robot_number = int(re.search(r"\d+", robot_name).group())
-    cursor.execute(
-        "SELECT robot_location FROM robot_info WHERE robot_name = robot_name;"
-    )
-    robot_position: str = cursor.fetchone()[0]
-    if "BCS_" in robot_position:
-        bcs_number = re.search(r"\d+", robot_position).group()
+    robot_location = fetch_robot_location(robot_name, cursor)
+    if "BCS_" in robot_location:
+        bcs_number = re.search(r"\d+", robot_location).group()
         bcs_station = "BCS_" + str(bcs_number)
         if bcs_station not in robot_bcs_blocker[robot_number - 1]:
             robot_bcs_blocker[robot_number - 1].append(bcs_station)
 
     with connection:
-        columns_str = ", ".join(robot_columns)
-        cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
+        robot_column_values = fetch_all(robot_columns, "robot_info", cursor)
         for each_row in robot_column_values:
             for value in each_row:
                 if "BCS_" in value:
                     bcs_number = re.search(r"\d+", value).group()
                     blocked_BCS.append(int(bcs_number))
 
-        cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values: List[Tuple[str, ...]]  = cursor.fetchall()
-
+        cart_column_values = fetch_all("cart_location", "cart_info", cursor)
         for each_row in cart_column_values:
             for value in each_row:
                 if "BCS_" in value:
                     bcs_number = re.search(r"\d+", value).group()
                     blocked_BCS.append(int(bcs_number))
 
-        cursor.execute("SELECT count FROM env_info WHERE info = 'BCS_count';")
-        bcs_count: int = cursor.fetchone()[0]
+        bcs_count = fetch_env_count("BCS_count", cursor)
         for bcs in range(1, bcs_count + 1):
             if bcs not in blocked_BCS:
                 available_BCS.append("BCS_" + str(bcs))
@@ -77,37 +94,29 @@ def search_bws(robot_name: str) -> str:
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
     robot_number = int(re.search(r"\d+", robot_name).group())
-    cursor.execute(
-        "SELECT robot_location FROM robot_info WHERE robot_name =robot_name;"
-    )
-    robot_position: str = cursor.fetchone()[0]
-    if "BWS_" in robot_position:
-        bws_number = re.search(r"\d+", robot_position).group()
+    robot_location = fetch_robot_location(robot_name, cursor)
+    if "BWS_" in robot_location:
+        bws_number = re.search(r"\d+", robot_location).group()
         bws_station = "BWS_" + str(bws_number)
         if bws_station not in robot_bws_blocker[robot_number - 1]:
             robot_bws_blocker[robot_number - 1].append(bws_station)
 
     with connection:
-        columns_str = ", ".join(robot_columns)
-        cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
+        robot_column_values = fetch_all(robot_columns, "robot_info", cursor)
         for each_row in robot_column_values:
             for value in each_row:
                 if "BWS_" in value:
                     bws_number = re.search(r"\d+", value).group()
                     blocked_BWS.append(int(bws_number))
 
-        cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values: List[Tuple[str, ...]] = cursor.fetchall()
-
+        cart_column_values = fetch_all("cart_location", "cart_info", cursor)
         for each_row in cart_column_values:
             for value in each_row:
                 if "BWS_" in value:
                     bws_number = re.search(r"\d+", value).group()
                     blocked_BWS.append(int(bws_number))
 
-        cursor.execute("SELECT count FROM env_info WHERE info = 'BWS_count';")
-        bws_count: int = cursor.fetchone()[0]
+        bws_count = fetch_env_count("BWS_count", cursor)
         for bws in range(1, bws_count + 1):
             if bws not in blocked_BWS:
                 available_BWS.append("BWS_" + str(bws))
