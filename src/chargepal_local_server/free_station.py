@@ -37,11 +37,17 @@ robot_columns = ["robot_location", "ongoing_action"]
 
 
 def search_free_station(robot_name: str, station_prefix: str) -> str:
+    """
+    Return a free station with station_prefix for robot_name,
+     or an empty str if there is none.
+    """
     free_station = ""
     blocked_stations: Set[str] = set()
 
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
+    # Determine station_name from current robot_location
+    #  and add it to this robot's blockers.
     robot_location = fetch_robot_location(robot_name, cursor)
     if station_prefix in robot_location:
         station_number = re.search(r"\d+", robot_location).group()
@@ -49,19 +55,21 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
         robot_blockers[station_prefix][robot_name].add(station_name)
 
     with connection:
+        # Fetch all stations blocked by robots.
         robot_column_values = fetch_all(robot_columns, "robot_info", cursor)
         for each_row in robot_column_values:
             for value in each_row:
                 if station_prefix in value:
                     blocked_stations.add(station_name)
 
+        # Fetch all stations blocked by carts.
         cart_column_values = fetch_all("cart_location", "cart_info", cursor)
         for each_row in cart_column_values:
             for value in each_row:
                 if station_prefix in value:
                     blocked_stations.add(station_name)
 
-        # Choosing the first available station that is not in the robot's blocker
+        # Choose the first available station that is not in the robot's blocker.
         station_count = fetch_env_count(station_prefix + "count", cursor)
         for station_number in range(1, station_count + 1):
             station_name = f"{station_prefix}{station_number}"
@@ -74,5 +82,6 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
 
 
 def reset_blockers(robot_name: str, station_prefix: str) -> bool:
+    """Clear the blockers for robot_name and stations with station_prefix."""
     robot_blockers[station_prefix][robot_name].clear()
     return True
