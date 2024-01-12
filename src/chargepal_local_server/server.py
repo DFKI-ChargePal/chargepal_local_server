@@ -46,12 +46,16 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def AskFreeStation(self, request: Request, context: Any) -> Response_FreeStation:
         with self.request_lock:
             if request.request_name == "ask_free_bcs":
-                available_station = free_station.search_bcs(request.robot_name)
+                available_station = free_station.search_free_station(
+                    request.robot_name, "BCS_"
+                )
                 response = communication_pb2.Response_FreeStation(
                     station_name=available_station
                 )
             elif request.request_name == "ask_free_bws":
-                available_station = free_station.search_bws(request.robot_name)
+                available_station = free_station.search_free_station(
+                    request.robot_name, "BWS_"
+                )
                 response = communication_pb2.Response_FreeStation(
                     station_name=available_station
                 )
@@ -69,12 +73,12 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     ) -> Response_ResetStationBlocker:
         with self.request_lock:
             if request.request_name == "reset_bcs_blocker":
-                status = free_station.reset_bcs_blocker(request.robot_name)
+                status = free_station.reset_blockers(request.robot_name, "BCS_")
                 response = communication_pb2.Response_ResetStationBlocker(
                     success=status
                 )
             elif request.request_name == "reset_bws_blocker":
-                status = free_station.reset_bws_blocker(request.robot_name)
+                status = free_station.reset_blockers(request.robot_name, "BWS_")
                 response = communication_pb2.Response_ResetStationBlocker(
                     success=status
                 )

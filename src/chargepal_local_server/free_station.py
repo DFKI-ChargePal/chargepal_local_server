@@ -1,136 +1,95 @@
 #!/usr/bin/env python3
-from typing import List, Tuple
+from typing import Dict, Iterable, List, Set, Tuple, Union
+from collections import defaultdict
 import sqlite3
 import re
 
 
-connection = sqlite3.connect("db/ldb.db")
-cursor = connection.cursor()
-cursor.execute("SELECT count FROM env_info WHERE info = 'robots_count';")
-robots_count: int = cursor.fetchone()[0]
-robot_bcs_blocker: List[List[str]] = [[] for _ in range(robots_count)]
-robot_bws_blocker: List[List[str]] = [[] for _ in range(robots_count)]
+def fetch_env_count(count_name: str, cursor: sqlite3.Cursor) -> int:
+    """Return count for count_name from env_info of ldb."""
+    cursor.execute(f"SELECT count FROM env_info WHERE info = '{count_name}';")
+    return int(cursor.fetchone()[0])
+
+
+def fetch_robot_location(robot_name: str, cursor: sqlite3.Cursor) -> str:
+    """Return robot location for robot_name from robot_info of ldb."""
+    cursor.execute(
+        f"SELECT robot_location FROM robot_info WHERE robot_name = '{robot_name}'"
+    )
+    return str(cursor.fetchone()[0])
+
+
+def fetch_all(
+    columns_str: Union[str, Iterable[str]], table: str, cursor: sqlite3.Cursor
+) -> List[Tuple[str, ...]]:
+    """Return all entries for columns_str from table of ldb."""
+    if not isinstance(columns_str, str):
+        columns_str = ", ".join(columns_str)
+    cursor.execute(f"SELECT {columns_str} FROM {table};")
+    return cursor.fetchall()
+
+
+robot_blockers: Dict[str, Dict[str, Set[str]]] = {
+    prefix: defaultdict(set) for prefix in ("BCS_", "BWS_")
+}
 
 robot_columns = ["robot_location", "ongoing_action"]
 
 
-def search_bcs(robot_name: str) -> str:
-    global robot_bcs_blocker
-    free_BCS = ""
-    blocked_BCS: List[int] = []
-    available_BCS: List[str] = []
+def get_station_name(string: str, station_prefix: str) -> str:
+    """Return station name with station_prefix from string."""
+    return re.search(rf"{station_prefix}(\d+)", string).group()
+
+
+def search_free_station(robot_name: str, station_prefix: str) -> str:
+    """
+    Return a free station with station_prefix for robot_name,
+     or an empty str if there is none.
+    """
+    free_station = ""
+    blocked_stations: Set[str] = set()
 
     connection = sqlite3.connect("db/ldb.db")
     cursor = connection.cursor()
-    robot_number = int(re.search(r"\d+", robot_name).group())
-    cursor.execute(
-        "SELECT robot_location FROM robot_info WHERE robot_name = robot_name;"
-    )
-    robot_position: str = cursor.fetchone()[0]
-    if "BCS_" in robot_position:
-        bcs_number = re.search(r"\d+", robot_position).group()
-        bcs_station = "BCS_" + str(bcs_number)
-        if bcs_station not in robot_bcs_blocker[robot_number - 1]:
-            robot_bcs_blocker[robot_number - 1].append(bcs_station)
+    # Determine station_name from current robot_location
+    #  and add it to this robot's blockers.
+    robot_location = fetch_robot_location(robot_name, cursor)
+    if station_prefix in robot_location:
+        robot_blockers[station_prefix][robot_name].add(
+            get_station_name(robot_location, station_prefix)
+        )
 
     with connection:
-        columns_str = ", ".join(robot_columns)
-        cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
+        # Fetch all stations blocked by robots.
+        robot_column_values = fetch_all(robot_columns, "robot_info", cursor)
         for each_row in robot_column_values:
             for value in each_row:
-                if "BCS_" in value:
-                    bcs_number = re.search(r"\d+", value).group()
-                    blocked_BCS.append(int(bcs_number))
+                if station_prefix in value:
+                    blocked_stations.add(get_station_name(value, station_prefix))
 
-        cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values: List[Tuple[str, ...]]  = cursor.fetchall()
-
+        # Fetch all stations blocked by carts.
+        cart_column_values = fetch_all("cart_location", "cart_info", cursor)
         for each_row in cart_column_values:
             for value in each_row:
-                if "BCS_" in value:
-                    bcs_number = re.search(r"\d+", value).group()
-                    blocked_BCS.append(int(bcs_number))
+                if station_prefix in value:
+                    blocked_stations.add(get_station_name(value, station_prefix))
 
-        cursor.execute("SELECT count FROM env_info WHERE info = 'BCS_count';")
-        bcs_count: int = cursor.fetchone()[0]
-        for bcs in range(1, bcs_count + 1):
-            if bcs not in blocked_BCS:
-                available_BCS.append("BCS_" + str(bcs))
-
-        # Choosing the first value in available_bcs that is not in the robot's blocker
-        for choice in available_BCS:
-            if choice not in robot_bcs_blocker[robot_number - 1]:
-                free_BCS = choice
-                robot_bcs_blocker[robot_number - 1].append(free_BCS)
+        # Choose the first available station that is not in the robot's blocker.
+        station_count = fetch_env_count(station_prefix + "count", cursor)
+        for station_number in range(1, station_count + 1):
+            station_name = f"{station_prefix}{station_number}"
+            if (
+                station_name not in blocked_stations
+                and station_name not in robot_blockers[station_prefix][robot_name]
+            ):
+                free_station = station_name
+                robot_blockers[station_prefix][robot_name].add(free_station)
                 break
 
-        return free_BCS
+    return free_station
 
 
-def search_bws(robot_name: str) -> str:
-    global robot_bws_blocker
-    free_BWS = ""
-    blocked_BWS: List[int] = []
-    available_BWS: List[str] = []
-
-    connection = sqlite3.connect("db/ldb.db")
-    cursor = connection.cursor()
-    robot_number = int(re.search(r"\d+", robot_name).group())
-    cursor.execute(
-        "SELECT robot_location FROM robot_info WHERE robot_name =robot_name;"
-    )
-    robot_position: str = cursor.fetchone()[0]
-    if "BWS_" in robot_position:
-        bws_number = re.search(r"\d+", robot_position).group()
-        bws_station = "BWS_" + str(bws_number)
-        if bws_station not in robot_bws_blocker[robot_number - 1]:
-            robot_bws_blocker[robot_number - 1].append(bws_station)
-
-    with connection:
-        columns_str = ", ".join(robot_columns)
-        cursor.execute(f"SELECT {columns_str} FROM robot_info;")
-        robot_column_values: List[Tuple[str, ...]] = cursor.fetchall()
-        for each_row in robot_column_values:
-            for value in each_row:
-                if "BWS_" in value:
-                    bws_number = re.search(r"\d+", value).group()
-                    blocked_BWS.append(int(bws_number))
-
-        cursor.execute(f"SELECT {'cart_location'} FROM cart_info;")
-        cart_column_values: List[Tuple[str, ...]] = cursor.fetchall()
-
-        for each_row in cart_column_values:
-            for value in each_row:
-                if "BWS_" in value:
-                    bws_number = re.search(r"\d+", value).group()
-                    blocked_BWS.append(int(bws_number))
-
-        cursor.execute("SELECT count FROM env_info WHERE info = 'BWS_count';")
-        bws_count: int = cursor.fetchone()[0]
-        for bws in range(1, bws_count + 1):
-            if bws not in blocked_BWS:
-                available_BWS.append("BWS_" + str(bws))
-
-        # Choosing the first value in available_bws that is not in the robot's blocker
-        for choice in available_BWS:
-            if choice not in robot_bws_blocker[robot_number - 1]:
-                free_BWS = choice
-                robot_bws_blocker[robot_number - 1].append(free_BWS)
-                break
-
-        return free_BWS
-
-
-def reset_bcs_blocker(robot_name):
-    global robot_bcs_blocker
-    robot_number = int(re.search(r"\d+", robot_name).group())
-    robot_bcs_blocker[robot_number - 1] = []
-    return True
-
-
-def reset_bws_blocker(robot_name):
-    global robot_bws_blocker
-    robot_number = int(re.search(r"\d+", robot_name).group())
-    robot_bws_blocker[robot_number - 1] = []
+def reset_blockers(robot_name: str, station_prefix: str) -> bool:
+    """Clear the blockers for robot_name and stations with station_prefix."""
+    robot_blockers[station_prefix][robot_name].clear()
     return True
