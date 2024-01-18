@@ -32,6 +32,7 @@ def main():
             cart_location TEXT,
             robot_on_cart TEXT,
             plugged TEXT,
+            cart_charge FLOAT,
             error_count INTEGER
         )
      """
