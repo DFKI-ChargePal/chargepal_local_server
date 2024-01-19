@@ -9,14 +9,14 @@ def fetch_job(robot_name: str) -> str:
 
     if job_success:
         job_type = input("Enter job type: ")
-        charger = input("Enter charger name: ")
+        cart = input("Enter cart name: ")
         source_station = input("Enter source_station name: ")
         target_station = input("Enter target_station name: ")
 
         job_details = {
             "job_type": job_type,
             "robot_name": robot_name,
-            "charger": charger,
+            "cart": cart,
             "source_station": source_station,
             "target_station": target_station,
         }

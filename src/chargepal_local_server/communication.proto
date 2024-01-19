@@ -14,7 +14,7 @@ message Response_UpdateRDB {
 message Response_Job {
     string job_type = 1;
     string robot_name = 2;
-    string charger = 3;
+    string cart = 3;
     string source_station = 4;
     string target_station = 5;
 }
