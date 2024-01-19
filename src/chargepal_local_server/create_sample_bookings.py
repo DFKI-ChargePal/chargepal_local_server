@@ -59,7 +59,7 @@ def create_table(drop_previous_table: bool = False) -> None:
         "NULL",
         "NULL",
         "NULL",
-        "NULL",
+        "021",
         "021",
         "195.87",
         "80",
