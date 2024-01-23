@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 import sqlite3
 
 
-BOOKING_HEADERS = (
+ALL_BOOKING_HEADERS = (
     "charging_session_id",
     "app_id",
     "customer_id",
@@ -33,6 +33,14 @@ BOOKING_HEADERS = (
     "Actual_plugintime_calculated",
     "Actual_BEV_Drop_Time",
     "Actual_BEV_Pickup_Time",
+)
+BOOKING_INFO_HEADERS = (  # Note: These are used by planning.
+    "charging_session_id",
+    "drop_location",
+    "charging_session_status",
+    "drop_date_time",
+    "pick_up_date_time",
+    "plugintime_calculated",
 )
 ROBOT_INFO_HEADERS = (
     "robot_name",
@@ -143,7 +151,7 @@ class DatabaseAccess:
 
 if __name__ == "__main__":
     access = DatabaseAccess()
-    bookings = access.fetch_new_bookings(BOOKING_HEADERS)
+    bookings = access.fetch_new_bookings(ALL_BOOKING_HEADERS)
     print(bookings)
     if bookings:
         print(bookings[-1]["charging_session_status"])

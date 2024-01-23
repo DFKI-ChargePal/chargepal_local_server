@@ -5,8 +5,6 @@ import communication_pb2
 import communication_pb2_grpc
 from concurrent import futures
 import threading
-import time
-import job
 import free_station
 import update_ldb
 from communication_pb2 import (
@@ -18,10 +16,12 @@ from communication_pb2 import (
     Response_UpdateJobMonitor,
     Response_UpdateRDB,
 )
+from planner import Planner
 
 
 class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
-    def __init__(self):
+    def __init__(self, planner: Planner):
+        self.planner = planner
         self.request_lock = threading.Lock()
         self.job_success_status = True
 
@@ -35,8 +35,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def FetchJob(self, request: Request, context: Any) -> Response_FetchJob:
         with self.request_lock:
             self.job_success_status = False
-            job_details = job.fetch_job(request.robot_name)
-            time.sleep(5)
+            job_details = self.planner.fetch_job(request.robot_name)
             response = communication_pb2.Response_FetchJob(
                 message="finished processing",
                 job=communication_pb2.Response_Job(**job_details),
@@ -107,14 +106,14 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
 
 def server() -> None:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+    planner = Planner()
     communication_pb2_grpc.add_CommunicationServicer_to_server(
-        CommunicationServicer(), server
+        CommunicationServicer(planner), server
     )
     server.add_insecure_port("[::]:50059")
     server.start()
-    stop_event = threading.Event()
     try:
-        stop_event.wait()
+        planner.run()
     except KeyboardInterrupt:
         server.stop(0)
 
