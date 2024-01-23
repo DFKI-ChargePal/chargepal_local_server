@@ -95,34 +95,44 @@ class Planner:
         )
         for booking in new_bookings:
             print(f"New booking [ {get_list_str_of_dict(booking)} ] received.")
-            booking_id = int(booking["charging_session_id"])
-            target_station = booking["drop_location"]
-            if not target_station.startswith("ADS_"):
-                match_result = re.search(r"0*(\d+)", target_station)
-                if match_result:
-                    target_station = f"ADS_{match_result.group(1)}"
-            drop_date_time = booking["drop_date_time"]
-            pick_up_date_time = booking["pick_up_date_time"]
-            plugintime_calculated = timedelta(
-                minutes=float(booking["plugintime_calculated"])
-            )
-            booking_info = (
-                drop_date_time,
-                pick_up_date_time,
-                plugintime_calculated,
-            )
-            self.booking_infos[booking_id] = booking_info
+            if all(
+                booking[name] is not None
+                for name in (
+                    "charging_session_id",
+                    "drop_location",
+                    "drop_date_time",
+                    "pick_up_date_time",
+                    "plugintime_calculated",
+                )
+            ):
+                booking_id = int(booking["charging_session_id"])
+                target_station = booking["drop_location"]
+                if not target_station.startswith("ADS_"):
+                    match_result = re.search(r"0*(\d+)", target_station)
+                    if match_result:
+                        target_station = f"ADS_{match_result.group(1)}"
+                drop_date_time = booking["drop_date_time"]
+                pick_up_date_time = booking["pick_up_date_time"]
+                plugintime_calculated = timedelta(
+                    minutes=float(booking["plugintime_calculated"])
+                )
+                booking_info = (
+                    drop_date_time,
+                    pick_up_date_time,
+                    plugintime_calculated,
+                )
+                self.booking_infos[booking_id] = booking_info
 
-            job = Job(
-                len(self.jobs) + 1,
-                JobType.BRING_CHARGER,
-                drop_date_time,
-                pick_up_date_time - plugintime_calculated - ROBOT_JOB_DURATION,
-                booking_id,
-                target_station=target_station,
-            )
-            print(f"{job} created.")
-            self.jobs.append(job)
+                job = Job(
+                    len(self.jobs) + 1,
+                    JobType.BRING_CHARGER,
+                    drop_date_time,
+                    pick_up_date_time - plugintime_calculated - ROBOT_JOB_DURATION,
+                    booking_id,
+                    target_station=target_station,
+                )
+                print(f"{job} created.")
+                self.jobs.append(job)
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
