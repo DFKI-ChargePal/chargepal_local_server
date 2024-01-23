@@ -59,6 +59,7 @@ class Planner:
         self.robot_infos: Dict[str, Dict[str, object]] = {}
         self.cart_infos: Dict[str, Dict[str, object]] = {}
         self.booking_infos: Dict[int, Tuple[str, datetime, datetime, timedelta]] = {}
+        self.last_fetched_booking_id = 0
         self.jobs: List[Job] = []
         # Store which robot is currently performing which job.
         self.current_jobs: Dict[str, Job] = {}
@@ -90,9 +91,12 @@ class Planner:
     def handle_new_bookings(self) -> None:
         """Fetch new bookings from ldb and initialize new jobs for them."""
         new_bookings = self.access.fetch_new_bookings(
-            access_ldb.BOOKING_INFO_HEADERS,
-            max(self.booking_infos.keys()) if self.booking_infos else 0,
+            access_ldb.BOOKING_INFO_HEADERS, self.last_fetched_booking_id
         )
+        if new_bookings:
+            self.last_fetched_booking_id = max(
+                booking["charging_session_id"] for booking in new_bookings
+            )
         for booking in new_bookings:
             print(f"New booking [ {get_list_str_of_dict(booking)} ] received.")
             if all(
