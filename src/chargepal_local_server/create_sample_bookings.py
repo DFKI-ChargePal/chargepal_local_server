@@ -10,11 +10,11 @@ def create_table(drop_previous_table: bool = False) -> None:
 
     if drop_previous_table:
         print("Dropping previous table.")
-        cursor.execute("DROP TABLE booking_info;")
+        cursor.execute("DROP TABLE orders_in;")
 
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS booking_info (
+        CREATE TABLE IF NOT EXISTS orders_in (
             charging_session_id TEXT,
             app_id TEXT,
             customer_id TEXT,
@@ -108,9 +108,9 @@ def create_table(drop_previous_table: bool = False) -> None:
         "NULL",
     )
 
-    print("Inserting values into table booking_info.")
+    print("Inserting values into table orders_in.")
     cursor.execute(
-        "INSERT INTO booking_info VALUES"
+        "INSERT INTO orders_in VALUES"
         " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
         booking_data_1,
     )
@@ -123,4 +123,4 @@ if __name__ == "__main__":
     if len(sys.argv) <= 2:
         create_table(drop_previous_table=bool(len(sys.argv) > 1 and sys.argv[1]))
     else:
-        print(f"Usage: {os.path.basename(__file__)} [<drop previous booking_info table>]")
+        print(f"Usage: {os.path.basename(__file__)} [<drop previous orders_in table>]")

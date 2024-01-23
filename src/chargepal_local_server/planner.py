@@ -6,7 +6,6 @@ from enum import IntEnum
 from threading import Lock
 from access_ldb import DatabaseAccess
 import access_ldb
-import re
 import time
 
 
@@ -110,11 +109,9 @@ class Planner:
                 )
             ):
                 booking_id = int(booking["charging_session_id"])
-                target_station = booking["drop_location"]
+                target_station = str(booking["drop_location"])
                 if not target_station.startswith("ADS_"):
-                    match_result = re.search(r"0*(\d+)", target_station)
-                    if match_result:
-                        target_station = f"ADS_{match_result.group(1)}"
+                    target_station = f"ADS_{int(target_station)}"
                 drop_date_time = booking["drop_date_time"]
                 pick_up_date_time = booking["pick_up_date_time"]
                 plugintime_calculated = timedelta(

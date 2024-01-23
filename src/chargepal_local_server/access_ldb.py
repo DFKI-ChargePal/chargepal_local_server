@@ -2,6 +2,7 @@
 from typing import Dict, Iterable, List, Optional
 from datetime import datetime, timedelta
 import mysql.connector
+import re
 import sqlite3
 
 
@@ -91,29 +92,45 @@ def time_str(
     return "{0:02d}:{1:02d}:{2:02d}".format(hours, minutes, seconds)
 
 
-def parse_time(string: str) -> timedelta:
-    hours_str, minutes_str, seconds_str = string.split(":")
-    return timedelta(
-        hours=float(hours_str), minutes=float(minutes_str), seconds=float(seconds_str)
-    )
+def parse_any(obj: object) -> object:
+    """Parse any str into its supported object type."""
+    if isinstance(obj, str):
+        if re.match(r"(\d+)-(\d+)-(\d+) (\d+):(\d+):(\d+)$", obj):
+            return datetime.strptime(obj, "%Y-%m-%d %H:%M:%S")
+        if re.match(r"(\d+):(\d+):(\d+)$", obj):
+            hours_str, minutes_str, seconds_str = obj.split(":")
+            return timedelta(
+                hours=float(hours_str),
+                minutes=float(minutes_str),
+                seconds=float(seconds_str),
+            )
+        if obj.isnumeric() and not obj.startswith("0"):
+            return float(obj) if "." in obj else int(obj)
+    return obj
 
 
 class DatabaseAccess:
     def __init__(self) -> None:
-        self.mysql_connection = mysql.connector.connect(
-            host="localhost",
-            user="ChargePal",
-            password="ChargePal3002!",
-            database="LSV0002_DB",
-        )
-        self.mysql_cursor = self.mysql_connection.cursor()
+        try:
+            self.mysql_connection = mysql.connector.connect(
+                host="localhost",
+                user="ChargePal",
+                password="ChargePal3002!",
+                database="LSV0002_DB",
+            )
+            self.mysql_cursor = self.mysql_connection.cursor()
+        except mysql.connector.errors.DatabaseError:
+            print("Warning: No MySQL database found, thus using ldb instead!")
+            self.mysql_cursor = None
         self.sqlite3_connection = sqlite3.connect("db/ldb.db")
+        # self.sqlite3_connection = sqlite3.connect("/home/alsu01/catkin_ws/src/chargepal_local_server/src/chargepal_local_server/db/ldb.db")
         self.sqlite3_cursor = self.sqlite3_connection.cursor()
 
     def close(self) -> None:
         """Commit and close database connections."""
-        self.mysql_connection.commit()
-        self.mysql_connection.close()
+        if self.mysql_cursor is not None:
+            self.mysql_connection.commit()
+            self.mysql_connection.close()
         self.sqlite3_connection.commit()
         self.sqlite3_connection.close()
 
@@ -135,22 +152,23 @@ class DatabaseAccess:
     def fetch_env_infos(self) -> Dict[str, int]:
         """Return env_info in ldb as dict of names and counts."""
         self.sqlite3_cursor.execute("SELECT * FROM env_info;")
-        return {name: count for name, count in self.sqlite3_cursor.fetchall()}
+        return {header: count for header, count in self.sqlite3_cursor.fetchall()}
 
     def fetch_new_bookings(
-        self, columns: Iterable[str], threshold: int = 0
-    ) -> List[Dict[str, str]]:
+        self, headers: Iterable[str], threshold: int = 0
+    ) -> List[Dict[str, object]]:
         """
-        Return from booking_info in lsv_db a dict of columns
+        Return from orders_in in lsv_db a dict of columns
         for which charging_session_id is greater than threshold.
         """
-        self.mysql_cursor.execute(
-            f"SELECT {', '.join(columns)} FROM orders_in"
+        cursor = self.sqlite3_cursor if self.mysql_cursor is None else self.mysql_cursor
+        cursor.execute(
+            f"SELECT {', '.join(headers)} FROM orders_in"
             f" WHERE charging_session_id > {threshold};"
         )
         return [
-            {column: entry for column, entry in zip(columns, entries)}
-            for entries in self.mysql_cursor.fetchall()
+            {header: parse_any(entry) for header, entry in zip(headers, entries)}
+            for entries in cursor.fetchall()
         ]
 
 
