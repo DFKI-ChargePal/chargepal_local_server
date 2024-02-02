@@ -19,7 +19,7 @@ def update(table_name: str, string_rdb_data: str) -> None:
                 )  # 'robot_name' is in the first column
 
             ldb_cursor.executemany(
-                "INSERT INTO robot_info VALUES (?,?,?,?,?,?,?) ", rows_data
+                "INSERT INTO robot_info VALUES (?,?,?,?,?,?,?,?) ", rows_data
             )
         elif table_name == "cart_info":
             for row in rows_data:
@@ -28,7 +28,7 @@ def update(table_name: str, string_rdb_data: str) -> None:
                 )  # 'robot_name' is in the first column
 
             ldb_cursor.executemany(
-                "INSERT INTO cart_info VALUES (?,?,?,?,?) ", rows_data
+                "INSERT INTO cart_info VALUES (?,?,?,?,?,?) ", rows_data
             )
 
         ldb_connection.commit()
