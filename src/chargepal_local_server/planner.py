@@ -87,6 +87,8 @@ class Planner:
         # Manage currently ready chargers, which expect their next commands.
         self.ready_chargers: Dict[str, ChargerCommand] = {}
         self.active = True
+        # Fetch and discard existing bookings from the database for development phase.
+        self.fetch_new_bookings()
 
     def find_nearest_cart(self, station: str, charge: float) -> Optional[str]:
         """Find nearest available cart to station which can provide charge."""
@@ -135,7 +137,36 @@ class Planner:
             self.access.fetch_by_first_header("cart_info", access_ldb.CART_INFO_HEADERS)
         )
 
-    def handle_new_bookings(self) -> None:
+    def update_job(self, robot: str) -> None:
+        if robot in self.current_jobs.keys():
+            job = self.current_jobs[robot]
+            del self.current_jobs[robot]
+            if job.type in (JobType.BRING_CHARGER, JobType.STOW_CHARGER):
+                job = Job(
+                    len(self.jobs) + 1,
+                    JobType.RECHARGE_SELF,
+                    datetime.now(),
+                    robot=robot,
+                    source_station="ADS_1",
+                    target_station="RBS_1",
+                )
+                print(f"{job} created.")
+                self.jobs.append(job)
+            elif job.type == JobType.RECHARGE_SELF:
+                print(self.cart_infos["BAT_1"])
+                if self.cart_infos["BAT_1"]["cart_location"] == "ADS_1":
+                    job = Job(
+                        len(self.jobs) + 1,
+                        JobType.STOW_CHARGER,
+                        datetime.now(),
+                        robot=robot,
+                        cart="BAT_1",
+                        source_station="ADS_1",
+                        target_station="BWS_1",
+                    )
+                    self.jobs.append(job)
+
+    def fetch_new_bookings(self) -> List[Dict[str, str]]:
         """Fetch new bookings from ldb and initialize new jobs for them."""
         new_bookings = self.access.fetch_new_bookings(
             access_ldb.BOOKING_INFO_HEADERS, self.last_fetched_booking_id
@@ -144,20 +175,24 @@ class Planner:
             self.last_fetched_booking_id = max(
                 booking["charging_session_id"] for booking in new_bookings
             )
+        return new_bookings
+
+    def handle_new_bookings(self) -> None:
+        new_bookings = self.fetch_new_bookings()
         for booking in new_bookings:
             print(f"New booking [ {get_list_str_of_dict(booking)} ] received.")
             if all(
                 booking[name] is not None
                 for name in (
                     "charging_session_id",
-                    "drop_location",
+                    # "drop_location",
                     "drop_date_time",
                     "pick_up_date_time",
                     "plugintime_calculated",
                 )
             ):
                 booking_id = int(booking["charging_session_id"])
-                target_station = str(booking["drop_location"])
+                target_station = "ADS_1"  # TODO str(booking["drop_location"])
                 if not target_station.startswith("ADS_"):
                     target_station = f"ADS_{int(target_station)}"
                 drop_date_time = booking["drop_date_time"]
@@ -274,6 +309,7 @@ class Planner:
                 "target_station": job.target_station,
             }
             print(f"Job [ {get_list_str_of_dict(job_details)} ] sent.")
+            self.current_jobs[robot] = job
             return job_details
 
         # Consider robot trying to fetch a job as available.
