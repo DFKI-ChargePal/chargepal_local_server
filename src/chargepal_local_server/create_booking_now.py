@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from datetime import datetime, timedelta
 import os
 import sqlite3
 import sys
@@ -47,41 +48,16 @@ def create_table(drop_previous_table: bool = False) -> None:
         """
     )
 
-    booking_data_1 = (
-        "1079",
+    cursor.execute("SELECT MAX(charging_session_id) FROM orders_in")
+    results = cursor.fetchall()
+    booking_id = int(results[0][0]) + 1 if results else 1
+    now = datetime.now()
+    now_str = now.isoformat(sep=" ", timespec="seconds")
+    booking_data = (
+        str(booking_id),
         "NULL",
         "2",
         "5YJSA7H11FFP67457",
-        "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
-        "021",
-        "021",
-        "195.87",
-        "80",
-        "NULL",
-        "2023-12-08 15:38:00",
-        "2023-12-10 16:38:00",
-        "NULL",
-        "2023-12-08 15:38:00",
-        "checked_in",
-        "2023-12-08 17:00:39",
-        "NULL",
-        "20",
-        "80",
-        "NULL",
-        "2023-12-08 17:00:00",
-        "2023-12-10 16:38:00",
-    )
-    booking_data_2 = (
-        "1085",
-        "NULL",
-        "2",
-        "5YJSA7H11FFP67456",
         "11",
         "NULL",
         "TYP2",
@@ -89,22 +65,22 @@ def create_table(drop_previous_table: bool = False) -> None:
         "NULL",
         "CCS",
         "LeftSide-Rear",
-        "NULL",
         "021",
-        "254.95",
+        "021",
+        "195.87",
         "80",
         "NULL",
-        "2024-01-13 11:59:00",
-        "2024-01-13 12:59:00",
+        now_str,
+        (now + timedelta(hours=2)).isoformat(sep=" ", timespec="seconds"),
         "NULL",
-        "2024-01-13 12:00:00",
-        "booked",
+        now_str,
+        "checked_in",
+        now_str,
         "NULL",
+        "20",
+        "80",
         "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
-        "NULL",
+        now_str,
         "NULL",
     )
 
@@ -112,7 +88,7 @@ def create_table(drop_previous_table: bool = False) -> None:
     cursor.execute(
         "INSERT INTO orders_in VALUES"
         " (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        booking_data_1,
+        booking_data,
     )
 
     connection.commit()
