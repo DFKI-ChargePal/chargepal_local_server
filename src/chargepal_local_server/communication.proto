@@ -5,6 +5,8 @@ message Request {
   string request_name = 2;
   string rdb_data = 3;
   string table_name = 4;
+  string job_name = 5;
+  string job_status = 6;
 }
 
 message Response_UpdateRDB {
