@@ -50,7 +50,7 @@ def create_table(drop_previous_table: bool = False) -> None:
 
     cursor.execute("SELECT MAX(charging_session_id) FROM orders_in")
     results = cursor.fetchall()
-    booking_id = int(results[0][0]) + 1 if results else 1
+    booking_id = int(results[0][0]) + 1 if results and results[0][0] else 1
     now = datetime.now()
     now_str = now.isoformat(sep=" ", timespec="seconds")
     booking_data = (
