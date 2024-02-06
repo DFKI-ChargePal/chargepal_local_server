@@ -339,7 +339,7 @@ class Planner:
         }
         return job_details
 
-    def run(self) -> None:
+    def run(self, update_interval: float=1.0) -> None:
         self.env_infos.update(self.access.fetch_env_infos())
         print(
             f"Parking area environment info [ {get_list_str_of_dict(self.env_infos)} ] received."
@@ -349,7 +349,7 @@ class Planner:
             self.update_cart_infos()
             self.handle_new_bookings()
             self.schedule_jobs()
-            time.sleep(1.0)
+            time.sleep(update_interval)
 
 
 if __name__ == "__main__":
