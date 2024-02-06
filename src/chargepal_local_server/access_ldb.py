@@ -157,7 +157,7 @@ class DatabaseAccess:
         try:
             with MySQLAccess():
                 pass
-        except mysql.connector.errors.DatabaseError:
+        except mysql.connector.errors.Error:
             print("Warning: No MySQL database found, thus using ldb instead!")
 
     def fetch_by_first_header(
@@ -197,7 +197,7 @@ class DatabaseAccess:
             with MySQLAccess() as cursor:
                 cursor.execute(sql_operation)
                 all_entries = cursor.fetchall()
-        except:
+        except mysql.connector.errors.Error:
             with SQLite3Access() as cursor:
                 cursor.execute(sql_operation)
                 all_entries = cursor.fetchall()

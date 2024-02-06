@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, List, Optional, Tuple
 import os
 import sqlite3
 
@@ -8,13 +8,25 @@ connection = sqlite3.connect(db_path)
 cursor = connection.cursor()
 
 
-def show_tables() -> None:
+def connect(path: Optional[str] = None) -> None:
+    """(Re-)Connect to ldb at path if given, else the global db_path."""
+    global db_path, connection, cursor
+    if path:
+        db_path = path
+    connection = sqlite3.connect(db_path)
+    cursor = connection.cursor()
+
+
+def show_tables(print_results: bool=True) -> List[Tuple[str, ...]]:
     """Print all tables in the ldb."""
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    print(cursor.fetchall())
+    results = cursor.fetchall()
+    if print_results:
+        print(results)
+    return results
 
 
-def select(sql: str) -> None:
+def select(sql: str, print_results: bool=True) -> List[Tuple[str, ...]]:
     """
     Print results of a "SELECT <sql>;" statement.
     If no "FROM" keyword is used, "* FROM " is prepended.
@@ -30,13 +42,17 @@ def select(sql: str) -> None:
         connection.commit()
         cursor.execute(sql)
         header = str(tuple(entries[0] for entries in cursor.description))
-        print(header)
-        print("-" * len(header))
-        for entries in cursor.fetchall():
-            print(entries)
+        results = cursor.fetchall()
+        if print_results:
+            print(header)
+            print("-" * len(header))
+            for entries in results:
+                print(entries)
+        return results
     except sqlite3.Error as e:
         print(sql)
         print(f"sqlite3.{type(e).__name__}: {e}")
+        return []
 
 
 def update(sql: str) -> None:
