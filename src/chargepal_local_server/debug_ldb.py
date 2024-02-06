@@ -17,7 +17,7 @@ def connect(path: Optional[str] = None) -> None:
     cursor = connection.cursor()
 
 
-def show_tables(print_results: bool=True) -> List[Tuple[str, ...]]:
+def show_tables(print_results: bool = False) -> List[Tuple[str, ...]]:
     """Print all tables in the ldb."""
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     results = cursor.fetchall()
@@ -26,7 +26,7 @@ def show_tables(print_results: bool=True) -> List[Tuple[str, ...]]:
     return results
 
 
-def select(sql: str, print_results: bool=True) -> List[Tuple[str, ...]]:
+def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
     """
     Print results of a "SELECT <sql>;" statement.
     If no "FROM" keyword is used, "* FROM " is prepended.
