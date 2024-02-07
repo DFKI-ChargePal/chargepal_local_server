@@ -4,7 +4,14 @@ import re
 import sqlite3
 
 
-db_path = os.path.join(os.path.dirname(__file__), "db/ldb.db")
+def get_db_filepath(reference_path: str, filename: str) -> str:
+    """
+    Compose path to db file using reference_path's directory name, "db/", and filename.
+    """
+    return os.path.join(os.path.dirname(reference_path), "db/", filename)
+
+
+db_path = get_db_filepath(__file__, "ldb.db")
 connection = sqlite3.connect(db_path)
 cursor = connection.cursor()
 
@@ -25,6 +32,12 @@ def show_tables(print_results: bool = False) -> List[Tuple[str, ...]]:
     if print_results:
         print(results)
     return results
+
+
+def delete_table(table: str) -> None:
+    """Delete all entries from table."""
+    cursor.execute("DELETE FROM orders_in;")
+    connection.commit()
 
 
 def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
