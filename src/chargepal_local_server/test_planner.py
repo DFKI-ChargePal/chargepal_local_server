@@ -29,7 +29,13 @@ debug_ldb.connect(ldb_filepath)
 
 
 class Scenario:
-    def __init__(self, working_directory: Optional[str] = None) -> None:
+    ENV_ALL_ONE = "robots: 1, carts: 1, RBS: 1, ADS: 1, BCS: 1, BWS: 1"
+
+    def __init__(
+        self,
+        working_directory: Optional[str] = None,
+        env_info_counts: Optional[str] = None,
+    ) -> None:
         self.working_directory = (
             working_directory if working_directory else os.path.dirname(__file__)
         )
@@ -38,6 +44,8 @@ class Scenario:
         self.robot_client = Core("localhost:55555", "ChargePal1")
         self.planner: Planner
         self.thread: Thread
+        if env_info_counts:
+            debug_ldb.counts.set(env_info_counts)
 
     def __enter__(self) -> "Scenario":
         os.chdir(self.working_directory)
@@ -75,13 +83,13 @@ def wait_for_job(scenario: Scenario, job_type: str, timeout: float = 1.0) -> Non
 
 
 def test_recharge_self() -> None:
-    with Scenario() as scenario:
+    with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
         wait_for_job(scenario, "RECHARGE_SELF")
 
 
 def test_bring_charger() -> None:
     debug_ldb.delete_table("orders_in")
-    with Scenario() as scenario:
+    with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
         create_sample_booking(ldb_filepath)
         wait_for_job(scenario, "BRING_CHARGER")
 
