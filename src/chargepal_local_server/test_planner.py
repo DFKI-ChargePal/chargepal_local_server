@@ -18,7 +18,7 @@ import os
 import time
 import debug_ldb
 from create_ldb_orders import create_sample_booking
-from planner import Planner
+from planner import ChargerCommand, JobType, Planner
 from server import CommunicationServicer
 from chargepal_client.core import Core
 
@@ -69,7 +69,7 @@ class Scenario:
         self.planner.active = False
 
 
-def wait_for_job(scenario: Scenario, job_type: str, timeout: float = 1.0) -> None:
+def wait_for_job(scenario: Scenario, job_type: JobType, timeout: float = 1.0) -> None:
     time_start = time.time()
     while True:
         response, _ = scenario.robot_client.fetch_job()
@@ -78,22 +78,30 @@ def wait_for_job(scenario: Scenario, job_type: str, timeout: float = 1.0) -> Non
         if time.time() - time_start >= timeout:
             raise TimeoutError("No job.")
     print(response)
-    if response.job.job_type != job_type:
+    if response.job.job_type != job_type.name:
         raise RuntimeError("Wrong job type.")
 
 
 def test_recharge_self() -> None:
     with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
-        wait_for_job(scenario, "RECHARGE_SELF")
+        wait_for_job(scenario, JobType.RECHARGE_SELF)
 
 
-def test_bring_charger() -> None:
+def test_bring_and_recharge() -> None:
     debug_ldb.delete_table("orders_in")
     with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
         create_sample_booking(ldb_filepath)
-        wait_for_job(scenario, "BRING_CHARGER")
+        wait_for_job(scenario, JobType.BRING_CHARGER)
+        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
+        wait_for_job(scenario, JobType.RECHARGE_SELF)
+        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
+        scenario.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
+        wait_for_job(scenario, JobType.RECHARGE_CHARGER)
+        scenario.robot_client.update_job_monitor("RECHARGE_CHARGER", "Success")
+        wait_for_job(scenario, JobType.RECHARGE_SELF)
+        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
 
 
 if __name__ == "__main__":
     test_recharge_self()
-    test_bring_charger()
+    test_bring_and_recharge()

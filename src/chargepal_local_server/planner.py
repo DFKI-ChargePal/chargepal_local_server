@@ -1,6 +1,5 @@
 """Rule-based planner for ChargePal robot fleet control"""
 
-
 #!/usr/bin/env python3
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
@@ -50,8 +49,8 @@ def get_list_str_of_dict(entries: Dict[str, str]) -> str:
 
 @dataclass
 class Job:
-    id: int
-    state: JobState = field(init=False, default=JobState.OPEN)
+    id: int = field(init=False)
+    state: JobState
     type: JobType
     schedule: datetime
     deadline: Optional[datetime] = None
@@ -94,6 +93,33 @@ class Planner:
         self.active = True
         # Fetch and discard existing bookings from the database for development phase.
         self.fetch_new_bookings()
+
+    def add_new_job(self, job: Job) -> Job:
+        """Add newly created job to all relevant monitoring."""
+        self.jobs.append(job)
+        job.id = len(self.jobs)
+        if job.state == JobState.OPEN:
+            self.open_jobs.append(job)
+        elif job.state == JobState.PENDING:
+            assert (
+                job.robot not in self.pending_jobs.keys()
+            ), f"{job.robot} already has a pending job."
+            self.pending_jobs[job.robot] = job
+        return job
+
+    def assign_job(self, job: Job, robot: str) -> None:
+        """Assign job to robot and update relevant monitoring."""
+        assert (
+            job.state == JobState.OPEN
+            and robot
+            and robot not in self.current_jobs.keys()
+            and robot not in self.pending_jobs.keys()
+        ), f"Cannot assign {job} to {robot}."
+        job.state = JobState.PENDING  # Transition J1
+        job.robot = robot
+        self.open_jobs.remove(job)
+        self.current_jobs[robot] = job
+        self.pending_jobs[robot] = job
 
     def pop_nearest_cart(self, station: str, charge: float) -> Optional[str]:
         """Find nearest available cart to station which can provide charge."""
@@ -143,33 +169,10 @@ class Planner:
         )
 
     def update_job(self, robot: str) -> None:
+        """ "Update job status."""
+        # TODO Add more details.
         if robot in self.current_jobs.keys():
-            job = self.current_jobs[robot]
             del self.current_jobs[robot]
-            if job.type in (JobType.BRING_CHARGER, JobType.STOW_CHARGER):
-                job = Job(
-                    len(self.jobs) + 1,
-                    JobType.RECHARGE_SELF,
-                    schedule=datetime.now(),
-                    robot=robot,
-                    source_station="ADS_1",
-                    target_station="RBS_1",
-                )
-                print(f"{job} created.")
-                self.jobs.append(job)
-            elif job.type == JobType.RECHARGE_SELF:
-                print(self.cart_infos["BAT_1"])
-                if self.cart_infos["BAT_1"]["cart_location"] == "ADS_1":
-                    job = Job(
-                        len(self.jobs) + 1,
-                        JobType.STOW_CHARGER,
-                        schedule=datetime.now(),
-                        robot=robot,
-                        cart="BAT_1",
-                        source_station="ADS_1",
-                        target_station="BWS_1",
-                    )
-                    self.jobs.append(job)
 
     def fetch_new_bookings(self) -> List[Dict[str, str]]:
         """Fetch new bookings from ldb and initialize new jobs for them."""
@@ -224,19 +227,19 @@ class Planner:
                 )
                 self.booking_infos[booking_id] = booking_info
                 # Create new job for new booking immediately.
-                job = Job(
-                    len(self.jobs) + 1,
-                    JobType.BRING_CHARGER,
-                    schedule=drop_date_time,
-                    deadline=pick_up_date_time
-                    - plugintime_calculated
-                    - ROBOT_JOB_DURATION,
-                    booking_id=booking_id,
-                    target_station=target_station,
+                job = self.add_new_job(
+                    Job(
+                        JobState.OPEN,
+                        JobType.BRING_CHARGER,
+                        schedule=drop_date_time,
+                        deadline=pick_up_date_time
+                        - plugintime_calculated
+                        - ROBOT_JOB_DURATION,
+                        booking_id=booking_id,
+                        target_station=target_station,
+                    )
                 )
                 print(f"{job} created.")
-                self.jobs.append(job)
-                self.open_jobs.append(job)
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -245,6 +248,28 @@ class Planner:
             cart not in self.ready_chargers.keys()
         ), f"Charger {cart} is already ready."
         self.ready_chargers[cart] = ChargerCommand.START_CHARGING
+
+    def handle_charger_update(self, charger: str, command: ChargerCommand) -> None:
+        """Handle charger signaling command."""
+        if command == ChargerCommand.START_CHARGING:
+            pass
+        elif command == ChargerCommand.START_RECHARGING:
+            pass
+        elif command == ChargerCommand.STOP_RECHARGING:
+            pass
+        elif command == ChargerCommand.RETRIEVE_CHARGER:
+            job = self.add_new_job(
+                Job(
+                    JobState.OPEN,
+                    JobType.RETRIEVE_CHARGER,
+                    schedule=datetime.now(),
+                    cart=charger,
+                    source_station=self.booking_infos[self.current_bookings[charger]][
+                        0
+                    ],
+                )
+            )
+            print(f"{job} created.")
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -255,35 +280,33 @@ class Planner:
 
                 if job.type == JobType.BRING_CHARGER:
                     assert job.booking_id and job.target_station
-                    # Select nearest charger to prefer transporting less.
+                    # Select nearest cart to prefer transporting less.
                     cart = self.pop_nearest_cart(
                         job.target_station,
                         self.booking_infos[job.booking_id][-1],
                     )
-                    assert cart not in self.current_bookings.keys()
+                    assert (
+                        cart not in self.current_bookings.keys()
+                    ), f"{cart} is already used for {self.current_bookings[cart]}."
                     source_station = str(self.cart_infos[cart]["cart_location"])
-                    # Select nearest robot.
                     robot = self.pop_nearest_robot(source_station)
-                    assert robot not in self.current_jobs.keys()
-                    job.state = JobState.PENDING  # Transition J1
-                    job.robot = robot
+                    self.assign_job(job, robot)
                     job.cart = cart
                     job.source_station = source_station
-                    self.current_jobs[robot] = job
-                    self.pending_jobs[robot] = job
                     self.current_bookings[cart] = job.booking_id  # Transition B1
                 elif job.type == JobType.RETRIEVE_CHARGER:
                     assert job.cart and job.source_station
                     robot = self.pop_nearest_robot(job.source_station)
-                    assert robot and robot not in self.current_jobs.keys()
-                    job.robot = robot
+                    self.assign_job(job, robot)
                     target_station = self.pop_nearest_station(
                         self.cart_infos[job.cart]["cart_location"]
                     )
                     assert target_station
                     if target_station.startswith("BCS_"):
                         job.type = JobType.RECHARGE_CHARGER  # Transition J3
-                        assert target_station not in self.current_reservations.keys()
+                        assert (
+                            target_station not in self.current_reservations.keys()
+                        ), f"{target_station} is already reserved for {self.current_reservations[target_station]}."
                         self.current_reservations[target_station] = job.cart
                         job.target_station = target_station
                     elif target_station.startswith("BWS_"):
@@ -291,35 +314,33 @@ class Planner:
                         job.target_station = target_station
                     else:
                         raise RuntimeError(f"Invalid target station {target_station}!")
-
                     assert (
                         job.robot
                         and job.cart
                         and job.source_station
                         and job.target_station
                     )
-                    assert job.robot not in self.current_jobs.keys()
-                    self.current_jobs[job.robot] = job
-                    self.pending_jobs[job.robot] = job
-                    job.state = JobState.PENDING
             # Let all remaining available robots recharge themselves.
             for robot in self.available_robots:
                 if robot not in self.current_jobs.keys():
-                    job = Job(
-                        len(self.jobs) + 1,
-                        JobType.RECHARGE_SELF,
-                        schedule=datetime.now(),
+                    job = self.add_new_job(
+                        Job(
+                            JobState.PENDING,
+                            JobType.RECHARGE_SELF,
+                            schedule=datetime.now(),
+                            robot=robot,
+                        )
                     )
-                    job.state = JobState.PENDING
-                    assert robot not in self.pending_jobs.keys()
                     self.current_jobs[robot] = job
-                    self.pending_jobs[robot] = job
 
     def fetch_job(self, robot: str) -> Dict[str, str]:
         """Fetch pending job for robot."""
         if robot in self.pending_jobs.keys():
             job = self.pending_jobs[robot]
             del self.pending_jobs[robot]
+            assert (
+                job == self.current_jobs[robot]
+            ), f"{job} pending for {robot} is not marked as its current job."
             job.state = JobState.ONGOING  # Transition J2 / J4 / J5
             job_details = {
                 "job_type": job.type.name,
@@ -328,8 +349,7 @@ class Planner:
                 "source_station": job.source_station,
                 "target_station": job.target_station,
             }
-            print(f"Job [ {get_list_str_of_dict(job_details)} ] sent.")
-            self.current_jobs[robot] = job
+            print(f"Job {job.id} [ {get_list_str_of_dict(job_details)} ] sent.")
             return job_details
 
         # Consider robot trying to fetch a job as available.
