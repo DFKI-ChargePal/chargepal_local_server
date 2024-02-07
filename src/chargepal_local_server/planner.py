@@ -1,3 +1,6 @@
+"""Rule-based planner for ChargePal robot fleet control"""
+
+
 #!/usr/bin/env python3
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field

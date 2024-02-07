@@ -1,3 +1,13 @@
+"""
+Test script to test planner on custom scenarios.
+
+The tests use scripts of local server and robot clients with grpc
+communication without ROS.
+Execution and message polling is accelerated a lot, so the tests
+are not suited as real-time tests.
+"""
+
+#!/usr/bin/env python3
 from typing import Optional, Type
 from types import TracebackType
 from concurrent import futures
