@@ -112,8 +112,8 @@ def parse_any(obj: object) -> object:
 
 
 class SQLite3Access:
-    def __init__(self, database: str = "db/ldb.db") -> None:
-        self.connection = sqlite3.connect(database)
+    def __init__(self, ldb_path: str) -> None:
+        self.connection = sqlite3.connect(ldb_path)
         self.cursor = self.connection.cursor()
 
     def __enter__(self) -> sqlite3.Cursor:
@@ -153,12 +153,13 @@ class MySQLAccess:
 
 
 class DatabaseAccess:
-    def __init__(self) -> None:
+    def __init__(self, ldb_filepath: Optional[str] = None) -> None:
+        self.ldb_filepath = ldb_filepath if ldb_filepath else "db/ldb.db"
         try:
             with MySQLAccess():
                 pass
         except mysql.connector.errors.Error:
-            print("Warning: No MySQL database found, thus using ldb instead!")
+            print(f"Warning: No MySQL database found, thus using '{self.ldb_filepath}' instead!")
 
     def fetch_by_first_header(
         self, table: str, headers: Iterable[str]
@@ -167,7 +168,7 @@ class DatabaseAccess:
         Return from ldb a dict for the first header in each row
         consisting of the remaining headers and entries.
         """
-        with SQLite3Access() as cursor:
+        with SQLite3Access(self.ldb_filepath) as cursor:
             cursor.execute(f"SELECT {', '.join(headers)} FROM {table};")
             return {
                 entries[0]: {
@@ -178,7 +179,7 @@ class DatabaseAccess:
 
     def fetch_env_infos(self) -> Dict[str, int]:
         """Return env_info in ldb as dict of names and counts."""
-        with SQLite3Access() as cursor:
+        with SQLite3Access(self.ldb_filepath) as cursor:
             cursor.execute("SELECT * FROM env_info;")
             return {header: count for header, count in cursor.fetchall()}
 
@@ -198,7 +199,7 @@ class DatabaseAccess:
                 cursor.execute(sql_operation)
                 all_entries = cursor.fetchall()
         except mysql.connector.errors.Error:
-            with SQLite3Access() as cursor:
+            with SQLite3Access(self.ldb_filepath) as cursor:
                 cursor.execute(sql_operation)
                 all_entries = cursor.fetchall()
         return [

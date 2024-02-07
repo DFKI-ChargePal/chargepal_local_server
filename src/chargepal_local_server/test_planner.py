@@ -6,23 +6,30 @@ import communication_pb2_grpc
 import grpc
 import os
 import time
-from create_booking_now import create_table
+import debug_ldb
+from create_ldb_orders import create_sample_booking
 from planner import Planner
 from server import CommunicationServicer
 from chargepal_client.core import Core
 
 
-class TestEnv:
+ldb_filepath = debug_ldb.get_db_filepath(__file__, "test_ldb.db")
+# Note: Reconnect on file level for pytest.
+debug_ldb.connect(ldb_filepath)
+
+
+class Scenario:
     def __init__(self, path: Optional[str] = None) -> None:
         self.path = path if path else os.path.dirname(__file__)
+        self.original_path = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         self.robot_client = Core("localhost:55555", "ChargePal1")
         self.planner: Planner
         self.thread: Thread
 
-    def __enter__(self) -> "TestEnv":
+    def __enter__(self) -> "Scenario":
         os.chdir(self.path)
-        self.planner = Planner()
+        self.planner = Planner(ldb_filepath)
         communication_pb2_grpc.add_CommunicationServicer_to_server(
             CommunicationServicer(self.planner), self.server
         )
@@ -38,13 +45,14 @@ class TestEnv:
         exception_value: BaseException,
         traceback: TracebackType,
     ) -> None:
+        os.chdir(self.original_path)
         self.planner.active = False
 
 
-def wait_for_job(env: TestEnv, job_type: str, timeout: float = 1.0) -> None:
+def wait_for_job(scenario: Scenario, job_type: str, timeout: float = 1.0) -> None:
     time_start = time.time()
     while True:
-        response, _ = env.robot_client.fetch_job()
+        response, _ = scenario.robot_client.fetch_job()
         if response.job.job_type:
             break
         if time.time() - time_start >= timeout:
@@ -55,14 +63,15 @@ def wait_for_job(env: TestEnv, job_type: str, timeout: float = 1.0) -> None:
 
 
 def test_recharge_self() -> None:
-    with TestEnv() as env:
-        wait_for_job(env, "RECHARGE_SELF")
+    with Scenario() as scenario:
+        wait_for_job(scenario, "RECHARGE_SELF")
 
 
 def test_bring_charger() -> None:
-    with TestEnv() as env:
-        create_table()
-        wait_for_job(env, "BRING_CHARGER")
+    debug_ldb.delete_table("orders_in")
+    with Scenario() as scenario:
+        create_sample_booking(ldb_filepath)
+        wait_for_job(scenario, "BRING_CHARGER")
 
 
 if __name__ == "__main__":

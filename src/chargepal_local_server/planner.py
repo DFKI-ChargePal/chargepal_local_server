@@ -60,8 +60,8 @@ class Job:
 
 
 class Planner:
-    def __init__(self) -> None:
-        self.access = DatabaseAccess()
+    def __init__(self, ldb_filepath: Optional[str] = None) -> None:
+        self.access = DatabaseAccess(ldb_filepath)
         self.env_infos: Dict[str, int] = {}
         self.robot_infos: Dict[str, Dict[str, object]] = {}
         self.update_robot_infos()
