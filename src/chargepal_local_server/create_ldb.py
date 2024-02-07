@@ -49,6 +49,7 @@ def main():
     # Insert a row of data
     robot_data_1 = ("ChargePal1", "RBS_1", "none", "none", "none", "none", 0.0, 0)
     robot_data_2 = ("ChargePal2", "RBS_2", "none", "none", "none", "none", 0.0, 0)
+    cursor.execute("DELETE FROM robot_info")
     cursor.execute(
         "INSERT INTO robot_info (robot_name,robot_location, current_job, ongoing_action, previous_action, cart_on_robot,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?)",
         robot_data_1,
@@ -61,6 +62,7 @@ def main():
     cart_data_1 = ("BAT_1", "BWS_1", "none", "none", 0.0, 0)
     cart_data_2 = ("BAT_2", "BWS_2", "none", "none", 0.0, 0)
     cart_data_3 = ("BAT_3", "BWS_3", "none", "none", 0.0, 0)
+    cursor.execute("DELETE FROM cart_info")
     cursor.execute(
         "INSERT INTO cart_info (cart_name,cart_location, robot_on_cart, plugged, cart_charge, error_count) VALUES (?,?,?,?,?,?)",
         cart_data_1,
