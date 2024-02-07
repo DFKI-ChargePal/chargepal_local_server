@@ -64,7 +64,9 @@ class Planner:
         self.access = DatabaseAccess()
         self.env_infos: Dict[str, int] = {}
         self.robot_infos: Dict[str, Dict[str, object]] = {}
+        self.update_robot_infos()
         self.cart_infos: Dict[str, Dict[str, object]] = {}
+        self.update_cart_infos()
         self.booking_infos: Dict[int, Tuple[str, datetime, datetime, timedelta]] = {}
         self.last_fetched_booking_id = 0
         # Store history of robot jobs.
@@ -90,12 +92,12 @@ class Planner:
         # Fetch and discard existing bookings from the database for development phase.
         self.fetch_new_bookings()
 
-    def find_nearest_cart(self, station: str, charge: float) -> Optional[str]:
+    def pop_nearest_cart(self, station: str, charge: float) -> Optional[str]:
         """Find nearest available cart to station which can provide charge."""
         # TODO Implement distance and power checks.
         return self.available_carts.pop(0) if self.available_carts else None
 
-    def find_nearest_robot(self, station: str) -> Optional[str]:
+    def pop_nearest_robot(self, station: str) -> Optional[str]:
         """Find nearest available robot to station."""
         # TODO Implement distance checks.
         return self.available_robots.pop(0) if self.available_robots else None
@@ -105,7 +107,7 @@ class Planner:
             station in infos["cart_location"] for infos in self.cart_infos.values()
         )
 
-    def find_nearest_station(self, station: str) -> Optional[str]:
+    def pop_nearest_station(self, station: str) -> Optional[str]:
         """
         Find nearest available station for a charger,
         preferably a battery charging station, else a battery waiting station.
@@ -145,7 +147,7 @@ class Planner:
                 job = Job(
                     len(self.jobs) + 1,
                     JobType.RECHARGE_SELF,
-                    datetime.now(),
+                    schedule=datetime.now(),
                     robot=robot,
                     source_station="ADS_1",
                     target_station="RBS_1",
@@ -158,7 +160,7 @@ class Planner:
                     job = Job(
                         len(self.jobs) + 1,
                         JobType.STOW_CHARGER,
-                        datetime.now(),
+                        schedule=datetime.now(),
                         robot=robot,
                         cart="BAT_1",
                         source_station="ADS_1",
@@ -195,12 +197,24 @@ class Planner:
                 target_station = "ADS_1"  # TODO str(booking["drop_location"])
                 if not target_station.startswith("ADS_"):
                     target_station = f"ADS_{int(target_station)}"
-                drop_date_time = booking["drop_date_time"]
-                pick_up_date_time = booking["pick_up_date_time"]
-                plugintime_calculated = timedelta(
-                    minutes=float(booking["plugintime_calculated"])
+                # Convert database entry of booking into proper formats.
+                drop_date_time = (
+                    datetime.strptime(booking["drop_date_time"], "%Y-%m-%d %H:%M:%S")
+                    if isinstance(booking["drop_date_time"], str)
+                    else booking["drop_date_time"]
                 )
-                booking_info = (
+                pick_up_date_time = (
+                    datetime.strptime(booking["pick_up_date_time"], "%Y-%m-%d %H:%M:%S")
+                    if isinstance(booking["pick_up_date_time"], str)
+                    else booking["pick_up_date_time"]
+                )
+                plugintime_calculated = (
+                    timedelta(minutes=float(booking["plugintime_calculated"]))
+                    if isinstance(booking["plugintime_calculated"], str)
+                    else booking["plugintime_calculated"]
+                )
+                booking_info: Tuple[str, datetime, datetime, timedelta] = (
+                    target_station,
                     drop_date_time,
                     pick_up_date_time,
                     plugintime_calculated,
@@ -210,9 +224,11 @@ class Planner:
                 job = Job(
                     len(self.jobs) + 1,
                     JobType.BRING_CHARGER,
-                    drop_date_time,
-                    pick_up_date_time - plugintime_calculated - ROBOT_JOB_DURATION,
-                    booking_id,
+                    schedule=drop_date_time,
+                    deadline=pick_up_date_time
+                    - plugintime_calculated
+                    - ROBOT_JOB_DURATION,
+                    booking_id=booking_id,
                     target_station=target_station,
                 )
                 print(f"{job} created.")
@@ -237,17 +253,15 @@ class Planner:
                 if job.type == JobType.BRING_CHARGER:
                     assert job.booking_id and job.target_station
                     # Select nearest charger to prefer transporting less.
-                    cart = self.find_nearest_cart(
+                    cart = self.pop_nearest_cart(
                         job.target_station,
-                        self.cart_infos[cart]["plugintime_calculated"],
+                        self.booking_infos[job.booking_id][-1],
                     )
                     assert cart not in self.current_bookings.keys()
                     source_station = str(self.cart_infos[cart]["cart_location"])
-                    self.available_carts.remove(cart)
                     # Select nearest robot.
-                    robot = self.find_nearest_robot(source_station)
+                    robot = self.pop_nearest_robot(source_station)
                     assert robot not in self.current_jobs.keys()
-                    self.available_robots.remove(robot)
                     job.state = JobState.PENDING  # Transition J1
                     job.robot = robot
                     job.cart = cart
@@ -257,10 +271,10 @@ class Planner:
                     self.current_bookings[cart] = job.booking_id  # Transition B1
                 elif job.type == JobType.RETRIEVE_CHARGER:
                     assert job.cart and job.source_station
-                    robot = self.find_nearest_robot(job.source_station)
+                    robot = self.pop_nearest_robot(job.source_station)
                     assert robot and robot not in self.current_jobs.keys()
                     job.robot = robot
-                    target_station = self.find_nearest_station(
+                    target_station = self.pop_nearest_station(
                         self.cart_infos[job.cart]["cart_location"]
                     )
                     assert target_station
@@ -284,12 +298,15 @@ class Planner:
                     assert job.robot not in self.current_jobs.keys()
                     self.current_jobs[job.robot] = job
                     self.pending_jobs[job.robot] = job
-                    self.available_robots.remove(job.robot)
                     job.state = JobState.PENDING
             # Let all remaining available robots recharge themselves.
             for robot in self.available_robots:
                 if robot not in self.current_jobs.keys():
-                    job = Job(len(self.jobs) + 1, JobType.RECHARGE_SELF, datetime.now())
+                    job = Job(
+                        len(self.jobs) + 1,
+                        JobType.RECHARGE_SELF,
+                        schedule=datetime.now(),
+                    )
                     job.state = JobState.PENDING
                     assert robot not in self.pending_jobs.keys()
                     self.current_jobs[robot] = job
@@ -314,7 +331,8 @@ class Planner:
 
         # Consider robot trying to fetch a job as available.
         with self.availability_lock:
-            self.available_robots.append(robot)
+            if robot not in self.available_robots:
+                self.available_robots.append(robot)
 
         return {
             "job_type": "",
@@ -339,7 +357,7 @@ class Planner:
         }
         return job_details
 
-    def run(self, update_interval: float=1.0) -> None:
+    def run(self, update_interval: float = 1.0) -> None:
         self.env_infos.update(self.access.fetch_env_infos())
         print(
             f"Parking area environment info [ {get_list_str_of_dict(self.env_infos)} ] received."
