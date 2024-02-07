@@ -126,6 +126,9 @@ class ParkingAreaCounts:
     counts.set("robots 1 carts: 2, RBS = 3; ADS4 and BCS:5 BWS=6")
     """
 
+    def __repr__(self) -> str:
+        return str({f"{name.replace('_count', '')}": count for name, count in select("env_info")})
+
     @staticmethod
     def select(prefix: str) -> int:
         return select(
