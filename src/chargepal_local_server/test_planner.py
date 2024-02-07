@@ -29,16 +29,18 @@ debug_ldb.connect(ldb_filepath)
 
 
 class Scenario:
-    def __init__(self, path: Optional[str] = None) -> None:
-        self.path = path if path else os.path.dirname(__file__)
-        self.original_path = os.getcwd()
+    def __init__(self, working_directory: Optional[str] = None) -> None:
+        self.working_directory = (
+            working_directory if working_directory else os.path.dirname(__file__)
+        )
+        self.original_working_directory = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         self.robot_client = Core("localhost:55555", "ChargePal1")
         self.planner: Planner
         self.thread: Thread
 
     def __enter__(self) -> "Scenario":
-        os.chdir(self.path)
+        os.chdir(self.working_directory)
         self.planner = Planner(ldb_filepath)
         communication_pb2_grpc.add_CommunicationServicer_to_server(
             CommunicationServicer(self.planner), self.server
@@ -55,7 +57,7 @@ class Scenario:
         exception_value: BaseException,
         traceback: TracebackType,
     ) -> None:
-        os.chdir(self.original_path)
+        os.chdir(self.original_working_directory)
         self.planner.active = False
 
 
