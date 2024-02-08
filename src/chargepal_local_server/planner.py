@@ -20,6 +20,7 @@ class ChargerCommand(IntEnum):
     START_RECHARGING = 2
     STOP_RECHARGING = 3
     RETRIEVE_CHARGER = 4
+    BOOKING_FULFILLED = 5
 
 
 class JobType(IntEnum):
@@ -109,12 +110,13 @@ class Planner:
 
     def assign_job(self, job: Job, robot: str) -> None:
         """Assign job to robot and update relevant monitoring."""
+        assert job.state == JobState.OPEN and robot
         assert (
-            job.state == JobState.OPEN
-            and robot
-            and robot not in self.current_jobs.keys()
-            and robot not in self.pending_jobs.keys()
-        ), f"Cannot assign {job} to {robot}."
+            robot not in self.current_jobs.keys()
+        ), f"{robot} already has job {self.current_jobs[robot]}."
+        assert (
+            robot not in self.pending_jobs.keys()
+        ), f"{self.pending_jobs[robot]} already scheduled for {robot}."
         job.state = JobState.PENDING  # Transition J1
         job.robot = robot
         self.open_jobs.remove(job)
@@ -132,7 +134,7 @@ class Planner:
         return self.available_robots.pop(0) if self.available_robots else None
 
     def is_station_occupied(self, station: str) -> bool:
-        return any(
+        return station in self.current_reservations.keys() or any(
             station in infos["cart_location"] for infos in self.cart_infos.values()
         )
 
@@ -172,10 +174,18 @@ class Planner:
         """Update job status."""
         if robot in self.current_jobs.keys():
             job = self.current_jobs[robot]
-            if job_type != job.type.name:
-                print(f"Warning: {robot} sent update of different job '{job_type}'"
-                      f" than its current job '{job.type.name}'.")
             del self.current_jobs[robot]
+            assert job.robot and job.robot == robot and job.target_station
+            assert job_type == job.type.name, (
+                f"Warning: {robot} sent update of different job '{job_type}'"
+                f" than its current job '{job.type.name}'."
+            )
+            if job.target_station in self.current_reservations.keys():
+                assert (
+                    self.current_reservations[job.target_station] == job.cart
+                ), f"{job.target_station} was not reserved for {job.cart}."
+                del self.current_reservations[job.target_station]
+            self.access.update_location(job.target_station, job.robot, job.cart)
         else:
             print(f"Warning: {robot} without current job sent a job update.")
 
@@ -271,8 +281,17 @@ class Planner:
         elif command == ChargerCommand.START_RECHARGING:
             pass
         elif command == ChargerCommand.STOP_RECHARGING:
-            pass
-        elif command == ChargerCommand.RETRIEVE_CHARGER:
+            assert (
+                charger not in self.available_carts
+            ), f"{charger} was available during recharging."
+            self.available_carts.append(charger)
+        elif command in (
+            ChargerCommand.RETRIEVE_CHARGER,
+            ChargerCommand.BOOKING_FULFILLED,
+        ):
+            assert (
+                charger in self.current_bookings.keys()
+            ), f"{charger} has no current booking."
             job = self.add_new_job(
                 Job(
                     JobState.OPEN,
@@ -285,6 +304,10 @@ class Planner:
                 )
             )
             print(f"{job} created.")
+
+            booking_id = self.current_bookings[charger]
+            # TODO update booking in database
+            del self.current_bookings[charger]
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -336,7 +359,7 @@ class Planner:
                         and job.target_station
                     )
             # Let all remaining available robots recharge themselves.
-            for robot in self.available_robots:
+            for robot in list(self.available_robots):
                 if robot not in self.current_jobs.keys():
                     job = self.add_new_job(
                         Job(
@@ -347,6 +370,7 @@ class Planner:
                         )
                     )
                     self.current_jobs[robot] = job
+                    self.available_robots.remove(robot)
 
     def fetch_job(self, robot: str) -> Dict[str, str]:
         """Fetch pending job for robot."""
@@ -369,7 +393,11 @@ class Planner:
 
         # Consider robot trying to fetch a job as available.
         with self.availability_lock:
-            if robot not in self.available_robots:
+            if (
+                robot not in self.available_robots
+                # For robustness, make sure the current job has been cleared.
+                and robot not in self.current_jobs.keys()
+            ):
                 self.available_robots.append(robot)
 
         return {
