@@ -8,7 +8,7 @@ are not suited as real-time tests.
 """
 
 #!/usr/bin/env python3
-from typing import Optional, Type
+from typing import Dict, Optional, Type
 from types import TracebackType
 from concurrent import futures
 from threading import Thread
@@ -23,8 +23,8 @@ from server import CommunicationServicer
 from chargepal_client.core import Core
 
 
-ldb_filepath = debug_ldb.get_db_filepath(__file__, "test_ldb.db")
 # Note: Reconnect on file level for pytest.
+ldb_filepath = debug_ldb.get_db_filepath(__file__, "test_ldb.db")
 debug_ldb.connect(ldb_filepath)
 
 
@@ -41,11 +41,14 @@ class Scenario:
         )
         self.original_working_directory = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        self.robot_client = Core("localhost:55555", "ChargePal1")
-        self.planner: Planner
-        self.thread: Thread
         if env_info_counts:
             debug_ldb.counts.set(env_info_counts)
+        self.robot_clients = {
+            f"ChargePal{number}": Core("localhost:55555", f"ChargePal{number}")
+            for number in range(1, debug_ldb.counts.robots + 1)
+        }
+        self.planner: Planner
+        self.thread: Thread
 
     def __enter__(self) -> "Scenario":
         os.chdir(self.working_directory)
@@ -69,10 +72,10 @@ class Scenario:
         self.planner.active = False
 
 
-def wait_for_job(scenario: Scenario, job_type: JobType, timeout: float = 1.0) -> None:
+def wait_for_job(client: Core, job_type: JobType, timeout: float = 1.0) -> None:
     time_start = time.time()
     while True:
-        response, _ = scenario.robot_client.fetch_job()
+        response, _ = client.fetch_job()
         if response.job.job_type:
             break
         if time.time() - time_start >= timeout:
@@ -84,22 +87,23 @@ def wait_for_job(scenario: Scenario, job_type: JobType, timeout: float = 1.0) ->
 
 def test_recharge_self() -> None:
     with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
-        wait_for_job(scenario, JobType.RECHARGE_SELF)
+        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
 
 
 def test_bring_and_recharge() -> None:
-    debug_ldb.delete_table("orders_in")
+    debug_ldb.delete_from("orders_in")
     with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
+        client = scenario.robot_clients["ChargePal1"]
         create_sample_booking(ldb_filepath)
-        wait_for_job(scenario, JobType.BRING_CHARGER)
-        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
-        wait_for_job(scenario, JobType.RECHARGE_SELF)
-        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
+        wait_for_job(client, JobType.BRING_CHARGER)
+        client.update_job_monitor("BRING_CHARGER", "Success")
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("BRING_CHARGER", "Success")
         scenario.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
-        wait_for_job(scenario, JobType.RECHARGE_CHARGER)
-        scenario.robot_client.update_job_monitor("RECHARGE_CHARGER", "Success")
-        wait_for_job(scenario, JobType.RECHARGE_SELF)
-        scenario.robot_client.update_job_monitor("BRING_CHARGER", "Success")
+        wait_for_job(client, JobType.RECHARGE_CHARGER)
+        client.update_job_monitor("RECHARGE_CHARGER", "Success")
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("BRING_CHARGER", "Success")
 
 
 if __name__ == "__main__":
