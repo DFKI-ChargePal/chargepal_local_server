@@ -5,7 +5,9 @@ import sqlite3
 import sys
 
 
-def create_sample_booking(db_filepath: str = "db/ldb.db") -> None:
+def create_sample_booking(
+    db_filepath: str = "db/ldb.db", drop_location: str = "021"
+) -> None:
     connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
 
@@ -26,8 +28,8 @@ def create_sample_booking(db_filepath: str = "db/ldb.db") -> None:
         "NULL",
         "CCS",
         "LeftSide-Rear",
-        "021",
-        "021",
+        drop_location,
+        drop_location,
         "195.87",
         "80",
         "NULL",
