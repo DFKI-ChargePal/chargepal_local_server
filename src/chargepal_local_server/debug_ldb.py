@@ -72,17 +72,11 @@ def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
 def update(sql: str) -> None:
     """
     Execute a "UPDATE <sql>; statement.
-    Usage of the "WHERE" keyword is mandatory.
 
     Example:
     update("robot_info set robot_location = 'ADS_1' where robot_name = 'ChargePal1'")
     """
     sql = f"UPDATE {sql};"
-    if " WHERE " not in sql.upper():
-        print(sql)
-        print('Error: Usage of the "WHERE" keyword is mandatory.')
-        return
-
     try:
         cursor.execute(sql)
         connection.commit()
