@@ -159,7 +159,9 @@ class DatabaseAccess:
             with MySQLAccess():
                 pass
         except mysql.connector.errors.Error:
-            print(f"Warning: No MySQL database found, thus using '{self.ldb_filepath}' instead!")
+            print(
+                f"Warning: No MySQL database found, thus using '{self.ldb_filepath}' instead!"
+            )
 
     def fetch_by_first_header(
         self, table: str, headers: Iterable[str]
@@ -206,6 +208,21 @@ class DatabaseAccess:
             {header: parse_any(entry) for header, entry in zip(headers, entries)}
             for entries in all_entries
         ]
+
+    def update_location(
+        self, location: str, robot: str, cart: Optional[str] = None
+    ) -> None:
+        """Update location of robot and cart in ldb."""  #
+        with SQLite3Access(self.ldb_filepath) as cursor:
+            cursor.execute(
+                f"UPDATE robot_info SET robot_location = '{location}'"
+                f" WHERE robot_name = '{robot}'"
+            )
+            if cart:
+                cursor.execute(
+                    f"UPDATE cart_info SET cart_location = '{location}'"
+                    f" WHERE cart_name = '{cart}'"
+                )
 
 
 if __name__ == "__main__":
