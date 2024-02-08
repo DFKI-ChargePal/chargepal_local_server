@@ -23,11 +23,11 @@ def main():
             robot_charge FLOAT,
             error_count INTEGER
         )
-    """
+        """
     )
     cursor.execute(
         """
-    CREATE TABLE IF NOT EXISTS cart_info (
+        CREATE TABLE IF NOT EXISTS cart_info (
             cart_name TEXT,
             cart_location TEXT,
             robot_on_cart TEXT,
@@ -35,16 +35,15 @@ def main():
             cart_charge FLOAT,
             error_count INTEGER
         )
-     """
+        """
     )
-
     cursor.execute(
         """
-    CREATE TABLE IF NOT EXISTS env_info (
+        CREATE TABLE IF NOT EXISTS env_info (
             info TEXT,
             count INTEGER
         )
-     """
+        """
     )
 
     # Insert a row of data
@@ -75,7 +74,7 @@ def main():
         cart_data_3,
     )
 
-    robots_count = ("robots_count", 3)
+    robots_count = ("robots_count", 2)
     carts_count = ("carts_count", 3)
     RBS_count = ("RBS_count", 2)
     ADS_count = ("ADS_count", 2)
