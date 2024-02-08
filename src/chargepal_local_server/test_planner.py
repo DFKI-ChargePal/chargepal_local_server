@@ -94,16 +94,16 @@ def test_bring_and_recharge() -> None:
     debug_ldb.delete_from("orders_in")
     with Scenario(env_info_counts=Scenario.ENV_ALL_ONE) as scenario:
         client = scenario.robot_clients["ChargePal1"]
-        create_sample_booking(ldb_filepath)
+        create_sample_booking(ldb_filepath, drop_location="ADS_1")
         wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        client.update_job_monitor("BRING_CHARGER", "Success")
         scenario.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
         wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Success")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        client.update_job_monitor("BRING_CHARGER", "Success")
+        client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
 if __name__ == "__main__":

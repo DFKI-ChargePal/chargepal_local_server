@@ -168,11 +168,16 @@ class Planner:
             self.access.fetch_by_first_header("cart_info", access_ldb.CART_INFO_HEADERS)
         )
 
-    def update_job(self, robot: str) -> None:
-        """ "Update job status."""
-        # TODO Add more details.
+    def update_job(self, robot: str, job_type: str) -> None:
+        """Update job status."""
         if robot in self.current_jobs.keys():
+            job = self.current_jobs[robot]
+            if job_type != job.type.name:
+                print(f"Warning: {robot} sent update of different job '{job_type}'"
+                      f" than its current job '{job.type.name}'.")
             del self.current_jobs[robot]
+        else:
+            print(f"Warning: {robot} without current job sent a job update.")
 
     def fetch_new_bookings(self) -> List[Dict[str, str]]:
         """Fetch new bookings from ldb and initialize new jobs for them."""
@@ -185,7 +190,17 @@ class Planner:
             )
         return new_bookings
 
+    def get_ads_for(self, location: str) -> str:
+        """Return adapter station name related to location."""
+        if location.startswith("ADS_"):
+            return location
+        # TODO Remove this workaround when parking area numbering is decided.
+        if location[-1].isdigit():
+            return f"ADS_{location[-1]}"
+        raise ValueError(f"No adapter station mapped to '{location}'.")
+
     def handle_new_bookings(self) -> None:
+        """Fetch new bookings from the database and create new jobs for them."""
         new_bookings = self.fetch_new_bookings()
         for booking in new_bookings:
             print(f"New booking [ {get_list_str_of_dict(booking)} ] received.")
@@ -200,7 +215,7 @@ class Planner:
                 )
             ):
                 booking_id = int(booking["charging_session_id"])
-                target_station = "ADS_1"  # TODO str(booking["drop_location"])
+                target_station = self.get_ads_for(booking["drop_location"])
                 if not target_station.startswith("ADS_"):
                     target_station = f"ADS_{int(target_station)}"
                 # Convert database entry of booking into proper formats.
