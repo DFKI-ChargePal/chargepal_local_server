@@ -26,7 +26,7 @@ def connect(path: Optional[str] = None) -> None:
 
 
 def show_tables(print_results: bool = False) -> List[Tuple[str, ...]]:
-    """Print all tables in the ldb."""
+    """Return and optionally print all tables in the ldb."""
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
     results = cursor.fetchall()
     if print_results:
@@ -34,15 +34,15 @@ def show_tables(print_results: bool = False) -> List[Tuple[str, ...]]:
     return results
 
 
-def delete_table(table: str) -> None:
+def delete_from(table: str) -> None:
     """Delete all entries from table."""
-    cursor.execute("DELETE FROM orders_in;")
+    cursor.execute(f"DELETE FROM {table};")
     connection.commit()
 
 
 def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
     """
-    Print results of a "SELECT <sql>;" statement.
+    Return and optionally print results of a "SELECT <sql>;" statement.
     If no "FROM" keyword is used, "* FROM " is prepended.
 
     Examples:
