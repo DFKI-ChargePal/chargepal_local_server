@@ -8,7 +8,7 @@ are not suited as real-time tests.
 """
 
 #!/usr/bin/env python3
-from typing import Optional, Tuple, Type
+from typing import Optional, Type
 from types import TracebackType
 from concurrent import futures
 from dataclasses import dataclass
@@ -60,6 +60,8 @@ class Scenario:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         debug_ldb.counts.set(env.counts)
+        # Set all locations to none for entities unused
+        #  to prevent them from blocking stations erroneously.
         debug_ldb.update("robot_info SET robot_location = 'NONE'")
         debug_ldb.update("cart_info SET cart_location = 'NONE'")
         debug_ldb.update_locations(env.locations)
@@ -176,7 +178,7 @@ def test_two_twice_in_parallel() -> None:
                 scenario.robot_clients[job.robot_name].update_job_monitor(
                     job.job_type, "Success"
                 )
-            # Stop recharging the charger which was not stowed,
+            # Stop recharging the chargers which were not stowed,
             #  while both robots recharge themselves.
             for _ in range(2):
                 scenario.wait_for_next_job()

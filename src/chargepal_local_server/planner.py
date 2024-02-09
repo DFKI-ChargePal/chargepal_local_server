@@ -134,6 +134,7 @@ class Planner:
         return self.available_robots.pop(0) if self.available_robots else None
 
     def is_station_occupied(self, station: str) -> bool:
+        """Return whether station is reserved for or used by any cart."""
         return station in self.current_reservations.keys() or any(
             station in infos["cart_location"] for infos in self.cart_infos.values()
         )
