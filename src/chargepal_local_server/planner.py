@@ -119,7 +119,7 @@ class Planner:
         assert (
             robot not in self.pending_jobs.keys()
         ), f"{self.pending_jobs[robot]} already scheduled for {robot}."
-        job.state = JobState.PENDING  # Transition J1
+        job.state = JobState.PENDING
         job.robot = robot
         self.open_jobs.remove(job)
         self.current_jobs[robot] = job
@@ -177,6 +177,7 @@ class Planner:
         """Update job status."""
         if robot in self.current_jobs.keys():
             job = self.current_jobs[robot]
+            job.state = JobState.COMPLETE  # Transition J9
             del self.current_jobs[robot]
             assert job.robot and job.robot == robot and job.target_station
             assert job_type == job.type.name, (
@@ -256,7 +257,7 @@ class Planner:
                     )
                     self.booking_infos[booking_id] = booking_info
                     assert booking_id not in self.open_bookings
-                    self.open_bookings.append(booking_id)
+                    self.open_bookings.append(booking_id)  # Transition B0
                 if (
                     booking_id in self.open_bookings
                     and booking["charging_session_status"] == "checked_in"
@@ -273,9 +274,9 @@ class Planner:
                             booking_id=booking_id,
                             target_station=target_station,
                         )
-                    )
+                    )  # Transition J0
                     print(f"{job} created.")
-                    self.open_bookings.remove(booking_id)
+                    self.open_bookings.remove(booking_id)  # Transition B1
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -313,12 +314,12 @@ class Planner:
                         0
                     ],
                 )
-            )
+            )  # Transition J0
             print(f"{job} created.")
 
             booking_id = self.current_bookings[charger]
             # TODO update booking in database
-            del self.current_bookings[charger]
+            del self.current_bookings[charger]  # Transition B2
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -339,20 +340,20 @@ class Planner:
                     ), f"{cart} is already used for {self.current_bookings[cart]}."
                     source_station = str(self.cart_infos[cart]["cart_location"])
                     robot = self.pop_nearest_robot(source_station)
-                    self.assign_job(job, robot)
+                    self.assign_job(job, robot)  # Transition J1
                     job.cart = cart
                     job.source_station = source_station
-                    self.current_bookings[cart] = job.booking_id  # Transition B1
+                    self.current_bookings[cart] = job.booking_id
                 elif job.type == JobType.RETRIEVE_CHARGER:
                     assert job.cart and job.source_station
                     robot = self.pop_nearest_robot(job.source_station)
-                    self.assign_job(job, robot)
+                    self.assign_job(job, robot)  # Transition J3
                     target_station = self.pop_nearest_station(
                         self.cart_infos[job.cart]["cart_location"]
                     )
                     assert target_station
                     if target_station.startswith("BCS_"):
-                        job.type = JobType.RECHARGE_CHARGER  # Transition J3
+                        job.type = JobType.RECHARGE_CHARGER
                         assert (
                             target_station not in self.current_reservations.keys()
                         ), f"{target_station} is already reserved for {self.current_reservations[target_station]}."
@@ -379,7 +380,7 @@ class Planner:
                             schedule=datetime.now(),
                             robot=robot,
                         )
-                    )
+                    )  # Transition J0 + J1
                     self.current_jobs[robot] = job
                     self.available_robots.remove(robot)
 
@@ -391,7 +392,7 @@ class Planner:
             assert (
                 job == self.current_jobs[robot]
             ), f"{job} pending for {robot} is not marked as its current job."
-            job.state = JobState.ONGOING  # Transition J2 / J4 / J5
+            job.state = JobState.ONGOING  # Transition J2
             job_details = {
                 "job_type": job.type.name,
                 "robot_name": robot,
