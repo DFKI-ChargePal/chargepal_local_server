@@ -71,7 +71,7 @@ class Planner:
         self.cart_infos: Dict[str, Dict[str, object]] = {}
         self.update_cart_infos()
         self.booking_infos: Dict[int, Tuple[str, datetime, datetime, timedelta]] = {}
-        self.last_fetched_booking_id = 0
+        self.last_fetched_change = datetime.min
         # Store history of robot jobs.
         self.jobs: List[Job] = []
         # Store which robot is currently performing which job.
@@ -80,6 +80,8 @@ class Planner:
         self.current_bookings: Dict[str, int] = {}
         # Store which battery charging station is currently reserved for which cart.
         self.current_reservations: Dict[str, str] = {}
+        # Manage currently open bookings, which need a job being created for.
+        self.open_bookings: List[int] = []
         # Manage currently open jobs, which yet need to be scheduled.
         self.open_jobs: List[Job] = []
         # Manage currently pending jobs, which robots should fetch now.
@@ -93,7 +95,7 @@ class Planner:
         self.ready_chargers: Dict[str, ChargerCommand] = {}
         self.active = True
         # Fetch and discard existing bookings from the database for development phase.
-        self.fetch_new_bookings()
+        self.fetch_updated_bookings()
 
     def add_new_job(self, job: Job) -> Job:
         """Add newly created job to all relevant monitoring."""
@@ -190,16 +192,16 @@ class Planner:
         else:
             print(f"Warning: {robot} without current job sent a job update.")
 
-    def fetch_new_bookings(self) -> List[Dict[str, str]]:
-        """Fetch new bookings from ldb and initialize new jobs for them."""
-        new_bookings = self.access.fetch_new_bookings(
-            access_ldb.BOOKING_INFO_HEADERS, self.last_fetched_booking_id
+    def fetch_updated_bookings(self) -> List[Dict[str, str]]:
+        """Fetch updated bookings from lsv_db."""
+        updated_bookings = self.access.fetch_updated_bookings(
+            access_ldb.BOOKING_INFO_HEADERS, self.last_fetched_change
         )
-        if new_bookings:
-            self.last_fetched_booking_id = max(
-                booking["charging_session_id"] for booking in new_bookings
+        if updated_bookings:
+            self.last_fetched_change = max(
+                booking["last_change"] for booking in updated_bookings
             )
-        return new_bookings
+        return updated_bookings
 
     def get_ads_for(self, location: str) -> str:
         """Return adapter station name related to location."""
@@ -210,16 +212,15 @@ class Planner:
             return f"ADS_{location[-1]}"
         raise ValueError(f"No adapter station mapped to '{location}'.")
 
-    def handle_new_bookings(self) -> None:
-        """Fetch new bookings from the database and create new jobs for them."""
-        new_bookings = self.fetch_new_bookings()
-        for booking in new_bookings:
-            print(f"New booking [ {get_list_str_of_dict(booking)} ] received.")
+    def handle_updated_bookings(self) -> None:
+        """Fetch updated bookings from the database and create new jobs from them."""
+        updated_bookings = self.fetch_updated_bookings()
+        for booking in updated_bookings:
             if all(
                 booking[name] is not None
                 for name in (
                     "charging_session_id",
-                    # "drop_location",
+                    "drop_location",
                     "drop_date_time",
                     "pick_up_date_time",
                     "plugintime_calculated",
@@ -245,27 +246,36 @@ class Planner:
                     if isinstance(booking["plugintime_calculated"], str)
                     else booking["plugintime_calculated"]
                 )
-                booking_info: Tuple[str, datetime, datetime, timedelta] = (
-                    target_station,
-                    drop_date_time,
-                    pick_up_date_time,
-                    plugintime_calculated,
-                )
-                self.booking_infos[booking_id] = booking_info
-                # Create new job for new booking immediately.
-                job = self.add_new_job(
-                    Job(
-                        JobState.OPEN,
-                        JobType.BRING_CHARGER,
-                        schedule=drop_date_time,
-                        deadline=pick_up_date_time
-                        - plugintime_calculated
-                        - ROBOT_JOB_DURATION,
-                        booking_id=booking_id,
-                        target_station=target_station,
+                if booking_id not in self.booking_infos.keys():
+                    # Remember new booking.
+                    booking_info: Tuple[str, datetime, datetime, timedelta] = (
+                        target_station,
+                        drop_date_time,
+                        pick_up_date_time,
+                        plugintime_calculated,
                     )
-                )
-                print(f"{job} created.")
+                    self.booking_infos[booking_id] = booking_info
+                    assert booking_id not in self.open_bookings
+                    self.open_bookings.append(booking_id)
+                if (
+                    booking_id in self.open_bookings
+                    and booking["charging_session_status"] == "checked_in"
+                ):
+                    # Create new job for the updated booking.
+                    job = self.add_new_job(
+                        Job(
+                            JobState.OPEN,
+                            JobType.BRING_CHARGER,
+                            schedule=drop_date_time,
+                            deadline=pick_up_date_time
+                            - plugintime_calculated
+                            - ROBOT_JOB_DURATION,
+                            booking_id=booking_id,
+                            target_station=target_station,
+                        )
+                    )
+                    print(f"{job} created.")
+                    self.open_bookings.remove(booking_id)
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -432,7 +442,7 @@ class Planner:
         while self.active:
             self.update_robot_infos()
             self.update_cart_infos()
-            self.handle_new_bookings()
+            self.handle_updated_bookings()
             self.schedule_jobs()
             time.sleep(update_interval)
 

@@ -60,6 +60,7 @@ class Scenario:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         debug_ldb.counts.set(env.counts)
+        debug_ldb.delete_from("orders_in")
         # Set all locations to none for entities unused
         #  to prevent them from blocking stations erroneously.
         debug_ldb.update("robot_info SET robot_location = 'NONE'")
@@ -136,7 +137,6 @@ def test_recharge_self() -> None:
 
 
 def test_bring_and_recharge() -> None:
-    debug_ldb.delete_from("orders_in")
     with Scenario(ENV_ALL_ONE) as scenario:
         client = scenario.robot_clients["ChargePal1"]
         create_sample_booking(ldb_filepath, drop_location="ADS_1")
@@ -152,7 +152,6 @@ def test_bring_and_recharge() -> None:
 
 
 def test_two_twice_in_parallel() -> None:
-    debug_ldb.delete_from("orders_in")
     with Scenario(ENV_DEFAULT) as scenario:
         for _ in range(2):
             # Create 2 bookings, let 2 robots bring 2 carts.
@@ -195,7 +194,20 @@ def test_two_twice_in_parallel() -> None:
                 client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
+def test_status_update() -> None:
+    with Scenario(ENV_ALL_ONE) as scenario:
+        client = scenario.robot_clients["ChargePal1"]
+        create_sample_booking(
+            ldb_filepath, drop_location="ADS_1", charging_session_status="booked"
+        )
+        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+        debug_ldb.update("orders_in SET charging_session_status = 'checked_in'")
+        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
+
+
 if __name__ == "__main__":
     test_recharge_self()
     test_bring_and_recharge()
     test_two_twice_in_parallel()
+    test_status_update()

@@ -6,7 +6,9 @@ import sys
 
 
 def create_sample_booking(
-    db_filepath: str = "db/ldb.db", drop_location: str = "021"
+    db_filepath: str = "db/ldb.db",
+    drop_location: str = "021",
+    charging_session_status: str = "checked_in",
 ) -> None:
     connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
@@ -37,7 +39,7 @@ def create_sample_booking(
         (now + timedelta(hours=2)).isoformat(sep=" ", timespec="seconds"),
         "NULL",
         now_str,
-        "checked_in",
+        charging_session_status,
         now_str,
         "NULL",
         "20",

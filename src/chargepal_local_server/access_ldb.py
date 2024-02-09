@@ -41,10 +41,11 @@ ALL_BOOKING_HEADERS = (
 BOOKING_INFO_HEADERS = (  # Note: These are used by planning.
     "charging_session_id",
     "drop_location",
-    "charging_session_status",
+    "plugintime_calculated",
     "drop_date_time",
     "pick_up_date_time",
-    "plugintime_calculated",
+    "charging_session_status",
+    "last_change",
 )
 ROBOT_INFO_HEADERS = (
     "robot_name",
@@ -185,16 +186,18 @@ class DatabaseAccess:
             cursor.execute("SELECT * FROM env_info;")
             return {header: count for header, count in cursor.fetchall()}
 
-    def fetch_new_bookings(
-        self, headers: Iterable[str], threshold: int = 0
+    def fetch_updated_bookings(
+        self, headers: Iterable[str], threshold: datetime = datetime.min
     ) -> List[Dict[str, object]]:
         """
-        Return from orders_in in lsv_db a dict of columns
-        for which charging_session_id is greater than threshold.
+        Return from orders_in in lsv_db a dict of headers and entries
+        for which last_change is greater than threshold.
+
+        Note: You must handle updates within the same second.
         """
         sql_operation = (
             f"SELECT {', '.join(headers)} FROM orders_in"
-            f" WHERE charging_session_id > {threshold};"
+            f" WHERE last_change >= '{threshold}';"
         )
         try:
             with MySQLAccess() as cursor:
@@ -227,7 +230,7 @@ class DatabaseAccess:
 
 if __name__ == "__main__":
     access = DatabaseAccess()
-    bookings = access.fetch_new_bookings(ALL_BOOKING_HEADERS)
+    bookings = access.fetch_updated_bookings(ALL_BOOKING_HEADERS)
     print(bookings)
     if bookings:
         print(bookings[-1]["charging_session_status"])
