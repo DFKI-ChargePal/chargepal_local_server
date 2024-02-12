@@ -176,9 +176,8 @@ class Planner:
     def update_job(self, robot: str, job_type: str) -> None:
         """Update job status."""
         if robot in self.current_jobs.keys():
-            job = self.current_jobs[robot]
+            job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
-            del self.current_jobs[robot]
             assert job.robot and job.robot == robot and job.target_station
             assert job_type == job.type.name, (
                 f"Warning: {robot} sent update of different job '{job_type}'"
@@ -188,7 +187,7 @@ class Planner:
                 assert (
                     self.current_reservations[job.target_station] == job.cart
                 ), f"{job.target_station} was not reserved for {job.cart}."
-                del self.current_reservations[job.target_station]
+                self.current_reservations.pop(job.target_station)
             self.access.update_location(job.target_station, job.robot, job.cart)
         else:
             print(f"Warning: {robot} without current job sent a job update.")
@@ -319,7 +318,7 @@ class Planner:
 
             booking_id = self.current_bookings[charger]
             # TODO update booking in database
-            del self.current_bookings[charger]  # Transition B2
+            self.current_bookings.pop(charger)  # Transition B2
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -387,8 +386,7 @@ class Planner:
     def fetch_job(self, robot: str) -> Dict[str, str]:
         """Fetch pending job for robot."""
         if robot in self.pending_jobs.keys():
-            job = self.pending_jobs[robot]
-            del self.pending_jobs[robot]
+            job = self.pending_jobs.pop(robot)
             assert (
                 job == self.current_jobs[robot]
             ), f"{job} pending for {robot} is not marked as its current job."
