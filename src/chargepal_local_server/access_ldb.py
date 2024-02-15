@@ -219,13 +219,34 @@ class DatabaseAccess:
         with SQLite3Access(self.ldb_filepath) as cursor:
             cursor.execute(
                 f"UPDATE robot_info SET robot_location = '{location}'"
-                f" WHERE robot_name = '{robot}'"
+                f" WHERE robot_name = '{robot}';"
             )
             if cart:
                 cursor.execute(
                     f"UPDATE cart_info SET cart_location = '{location}'"
-                    f" WHERE cart_name = '{cart}'"
+                    f" WHERE cart_name = '{cart}';"
                 )
+
+    def update_session_status(
+        self, charging_session_id: int, charging_session_status: str
+    ) -> None:
+        """Update charging_session_status for charging_session_id in lsv_db."""
+        sql_status_operation = (
+            f"UPDATE orders_in SET charging_session_status = '{charging_session_status}'"
+            f" WHERE charging_session_id = {charging_session_id};"
+        )
+        sql_change_operation = (
+            f"UPDATE orders_in SET last_change = '{datetime_str()}'"
+            f" WHERE charging_session_id = {charging_session_id};"
+        )
+        try:
+            with MySQLAccess() as cursor:
+                cursor.execute(sql_status_operation)
+                cursor.execute(sql_change_operation)
+        except mysql.connector.errors.Error:
+            with SQLite3Access(self.ldb_filepath) as cursor:
+                cursor.execute(sql_status_operation)
+                cursor.execute(sql_change_operation)
 
 
 if __name__ == "__main__":

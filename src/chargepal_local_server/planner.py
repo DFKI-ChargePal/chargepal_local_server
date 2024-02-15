@@ -180,15 +180,19 @@ class Planner:
             job.state = JobState.COMPLETE  # Transition J9
             assert job.robot and job.robot == robot and job.target_station
             assert job_type == job.type.name, (
-                f"Warning: {robot} sent update of different job '{job_type}'"
+                f"{robot} sent update of different job '{job_type}'"
                 f" than its current job '{job.type.name}'."
             )
+            # Update locations of robot and potentially cart.
             if job.target_station in self.current_reservations.keys():
                 assert (
                     self.current_reservations[job.target_station] == job.cart
                 ), f"{job.target_station} was not reserved for {job.cart}."
                 self.current_reservations.pop(job.target_station)
             self.access.update_location(job.target_station, job.robot, job.cart)
+            # Update charging_session_status.
+            if job.type == JobType.BRING_CHARGER:
+                self.access.update_session_status(job.booking_id, "plugin_success")
         else:
             print(f"Warning: {robot} without current job sent a job update.")
 
@@ -276,6 +280,9 @@ class Planner:
                     )  # Transition J0
                     print(f"{job} created.")
                     self.open_bookings.remove(booking_id)  # Transition B1
+                elif booking["charging_session_status"] == "BEV_pending":
+                    # TODO Handle signal to connect to BEV directly.
+                    pass
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -315,9 +322,6 @@ class Planner:
                 )
             )  # Transition J0
             print(f"{job} created.")
-
-            booking_id = self.current_bookings[charger]
-            # TODO update booking in database
             self.current_bookings.pop(charger)  # Transition B2
 
     def schedule_jobs(self) -> None:
