@@ -44,6 +44,14 @@ class JobState(IntEnum):
         return self.name
 
 
+class PlugInState(IntEnum):
+    BRING_CHARGER = 1
+    ROBOT_READY2PLUG = 2
+    BEV_PENDING = 3
+    PLUG_IN = 4
+    SUCCESS = 5
+
+
 def get_list_str_of_dict(entries: Dict[str, str]) -> str:
     return ", ".join(f"{key}: {value}" for key, value in entries.items())
 
@@ -94,6 +102,8 @@ class Planner:
         # Manage currently ready chargers, which expect their next commands.
         self.ready_chargers: Dict[str, ChargerCommand] = {}
         self.active = True
+        # Manage current states of plug-in jobs for bookings.
+        self.plugin_states: Dict[int, PlugInState] = {}
         # Fetch and discard existing bookings from the database for development phase.
         self.fetch_updated_bookings()
 
@@ -192,6 +202,7 @@ class Planner:
             self.access.update_location(job.target_station, job.robot, job.cart)
             # Update charging_session_status.
             if job.type == JobType.BRING_CHARGER:
+                self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
         else:
             print(f"Warning: {robot} without current job sent a job update.")
@@ -281,8 +292,7 @@ class Planner:
                     print(f"{job} created.")
                     self.open_bookings.remove(booking_id)  # Transition B1
                 elif booking["charging_session_status"] == "BEV_pending":
-                    # TODO Handle signal to connect to BEV directly.
-                    pass
+                    self.plugin_states[booking_id] = PlugInState.BEV_PENDING
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -347,6 +357,7 @@ class Planner:
                     job.cart = cart
                     job.source_station = source_station
                     self.current_bookings[cart] = job.booking_id
+                    self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
                 elif job.type == JobType.RETRIEVE_CHARGER:
                     assert job.cart and job.source_station
                     robot = self.pop_nearest_robot(job.source_station)
@@ -436,6 +447,17 @@ class Planner:
             "target_station": target_station,
         }
         return job_details
+
+    def robot_ready2plug(self, robot: str) -> bool:
+        booking_id = self.current_jobs[robot].booking_id
+        plugin_state = self.plugin_states[booking_id]
+        if plugin_state == PlugInState.BRING_CHARGER:
+            self.plugin_states[booking_id] = PlugInState.ROBOT_READY2PLUG
+            self.access.update_session_status(booking_id, "robot_ready2plug")
+        elif plugin_state == PlugInState.BEV_PENDING:
+            self.plugin_states[booking_id] = PlugInState.PLUG_IN
+            return True
+        return False
 
     def run(self, update_interval: float = 1.0) -> None:
         self.env_infos.update(self.access.fetch_env_infos())
