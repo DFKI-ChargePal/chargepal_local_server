@@ -206,8 +206,30 @@ def test_status_update() -> None:
         wait_for_job(scenario.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
 
 
+def test_plug_in_handshake() -> None:
+    with Scenario(ENV_ALL_ONE) as scenario:
+        client = scenario.robot_clients["ChargePal1"]
+        create_sample_booking(ldb_filepath, drop_location="ADS_1")
+        wait_for_job(client, JobType.BRING_CHARGER)
+        get_status = lambda: debug_ldb.select(
+            "charging_session_status FROM orders_in",
+        )[-1][0]
+        assert get_status() == "checked_in", get_status()
+        assert not scenario.planner.robot_ready2plug("ChargePal1")
+        assert get_status() == "robot_ready2plug", get_status()
+        assert not scenario.planner.robot_ready2plug("ChargePal1")
+        debug_ldb.update(
+            "orders_in SET charging_session_status == 'BEV_pending'"
+            " WHERE charging_session_status == 'robot_ready2plug'"
+        )
+        assert not scenario.planner.robot_ready2plug("ChargePal1")
+        scenario.planner.handle_updated_bookings()
+        assert scenario.planner.robot_ready2plug("ChargePal1")
+
+
 if __name__ == "__main__":
     test_recharge_self()
     test_bring_and_recharge()
     test_two_twice_in_parallel()
     test_status_update()
+    test_plug_in_handshake()
