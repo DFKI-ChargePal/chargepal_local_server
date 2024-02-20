@@ -3,10 +3,12 @@ syntax = "proto3";
 message Request {
   string robot_name = 1;
   string request_name = 2;
-  string rdb_data = 3;
-  string table_name = 4;
-  string job_name = 5;
-  string job_status = 6;
+  string station_name = 3;
+  string cart_name = 4;
+  string table_name = 5;
+  string job_name = 6;
+  string rdb_data = 7;
+  string job_status = 8;
 }
 
 message Response_UpdateRDB {
@@ -51,6 +53,11 @@ message Response_OperationTime {
 
 }
 
+message Response_Ready2PlugInADS {
+  bool ready_to_plugin = 1;
+
+}
+
 
 service Communication {
   rpc UpdateRDB(Request) returns (Response_UpdateRDB);
@@ -60,5 +67,6 @@ service Communication {
   rpc PushToLDB(Request) returns (Response_PushToLDB);
   rpc ResetStationBlocker(Request) returns (Response_ResetStationBlocker);
   rpc OperationTime(Request) returns (Response_OperationTime);
+  rpc Ready2PlugInADS(Request) returns (Response_Ready2PlugInADS);
 
 }

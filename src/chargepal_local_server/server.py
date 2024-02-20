@@ -12,6 +12,7 @@ from communication_pb2 import (
     Response_FetchJob,
     Response_FreeStation,
     Response_PushToLDB,
+    Response_Ready2PlugInADS,
     Response_ResetStationBlocker,
     Response_UpdateJobMonitor,
     Response_UpdateRDB,
@@ -102,6 +103,14 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
             requested_cart = request.cart_name
             status = True  # ToDo: Calculate the time left for the cart to finish charging job
             response = communication_pb2.Response_UpdateJobMonitor(msec=30000)
+        return response
+
+    def Ready2PlugInADS(
+        self, request: Request, context: Any
+    ) -> Response_Ready2PlugInADS:
+        with self.request_lock:
+            ready_to_plugin = self.planner.robot_ready2plug(request.robot_name)
+            response = communication_pb2.Response_Ready2PlugInADS(ready_to_plugin)
         return response
 
 
