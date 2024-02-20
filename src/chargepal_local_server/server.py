@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 from typing import Any
-import grpc
-import communication_pb2
-import communication_pb2_grpc
 from concurrent import futures
-import threading
+import communication_pb2_grpc
 import free_station
+import grpc
+import threading
 import update_ldb
 from communication_pb2 import (
     Request,
     Response_FetchJob,
     Response_FreeStation,
+    Response_Job,
     Response_PushToLDB,
     Response_Ready2PlugInADS,
     Response_ResetStationBlocker,
@@ -31,15 +31,15 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         with open("db/ldb.db", "rb") as file:
             file_content = file.read()
 
-        return communication_pb2.Response_UpdateRDB(ldb=file_content)
+        return Response_UpdateRDB(ldb=file_content)
 
     def FetchJob(self, request: Request, context: Any) -> Response_FetchJob:
         with self.request_lock:
             self.job_success_status = False
             job_details = self.planner.fetch_job(request.robot_name)
-            response = communication_pb2.Response_FetchJob(
+            response = Response_FetchJob(
                 message="finished processing",
-                job=communication_pb2.Response_Job(**job_details),
+                job=Response_Job(**job_details),
             )
         return response
 
@@ -49,23 +49,19 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
                 available_station = free_station.search_free_station(
                     request.robot_name, "BCS_"
                 )
-                response = communication_pb2.Response_FreeStation(
-                    station_name=available_station
-                )
+                response = Response_FreeStation(station_name=available_station)
             elif request.request_name == "ask_free_bws":
                 available_station = free_station.search_free_station(
                     request.robot_name, "BWS_"
                 )
-                response = communication_pb2.Response_FreeStation(
-                    station_name=available_station
-                )
+                response = Response_FreeStation(station_name=available_station)
         assert response, f"Invalid request name: '{request.request_name}'"
         return response
 
     def PushToLDB(self, request: Request, context: Any) -> Response_PushToLDB:
         with self.request_lock:
             status = update_ldb.update(request.table_name, request.rdb_data)
-            response = communication_pb2.Response_PushToLDB(success=status)
+            response = Response_PushToLDB(success=status)
         return response
 
     def ResetStationBlocker(
@@ -74,14 +70,10 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         with self.request_lock:
             if request.request_name == "reset_bcs_blocker":
                 status = free_station.reset_blockers(request.robot_name, "BCS_")
-                response = communication_pb2.Response_ResetStationBlocker(
-                    success=status
-                )
+                response = Response_ResetStationBlocker(success=status)
             elif request.request_name == "reset_bws_blocker":
                 status = free_station.reset_blockers(request.robot_name, "BWS_")
-                response = communication_pb2.Response_ResetStationBlocker(
-                    success=status
-                )
+                response = Response_ResetStationBlocker(success=status)
         assert response, f"Invalid request name: '{request.request_name}'"
         return response
 
@@ -91,9 +83,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         with self.request_lock:
             self.job_success_status = True  # ToDo: update job monitor
             self.planner.update_job(request.robot_name, request.job_name)
-            response = communication_pb2.Response_UpdateJobMonitor(
-                success=self.job_success_status
-            )
+            response = Response_UpdateJobMonitor(success=self.job_success_status)
         return response
 
     def OperationTime(
@@ -102,7 +92,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         with self.request_lock:
             requested_cart = request.cart_name
             status = True  # ToDo: Calculate the time left for the cart to finish charging job
-            response = communication_pb2.Response_UpdateJobMonitor(msec=30000)
+            response = Response_UpdateJobMonitor(msec=30000)
         return response
 
     def Ready2PlugInADS(
@@ -110,7 +100,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     ) -> Response_Ready2PlugInADS:
         with self.request_lock:
             ready_to_plugin = self.planner.robot_ready2plug(request.robot_name)
-            response = communication_pb2.Response_Ready2PlugInADS(ready_to_plugin)
+            response = Response_Ready2PlugInADS(ready_to_plugin)
         return response
 
 
