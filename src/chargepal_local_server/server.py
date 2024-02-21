@@ -6,6 +6,7 @@ import free_station
 import grpc
 import threading
 import update_ldb
+import read_serialize_ldb
 from communication_pb2 import (
     Request,
     Response_FetchJob,
@@ -16,6 +17,7 @@ from communication_pb2 import (
     Response_ResetStationBlocker,
     Response_UpdateJobMonitor,
     Response_UpdateRDB,
+    Response_PullLDB,
 )
 from planner import Planner
 
@@ -27,11 +29,13 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         self.job_success_status = True
 
     def UpdateRDB(self, request: Request, context: Any) -> Response_UpdateRDB:
-        robot_name = request.robot_name
+        response = read_serialize_ldb.read_serialize()
+        return response
+
+    def PullLDB(self, request: Request, context: Any) -> Response_PullLDB:
         with open("db/ldb.db", "rb") as file:
             file_content = file.read()
-
-        return Response_UpdateRDB(ldb=file_content)
+        return Response_PullLDB(ldb=file_content)
 
     def FetchJob(self, request: Request, context: Any) -> Response_FetchJob:
         with self.request_lock:

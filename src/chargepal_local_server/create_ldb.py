@@ -82,6 +82,7 @@ def main():
     ADS_count = ("ADS_count", 2)
     BCS_count = ("BCS_count", 2)
     BWS_count = ("BWS_count", 3)
+    cursor.execute("DELETE FROM env_info")
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", robots_count)
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", carts_count)
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", RBS_count)
