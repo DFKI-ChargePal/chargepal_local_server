@@ -183,7 +183,7 @@ class Planner:
             self.access.fetch_by_first_header("cart_info", access_ldb.CART_INFO_HEADERS)
         )
 
-    def update_job(self, robot: str, job_type: str) -> None:
+    def update_job(self, robot: str, job_type: str) -> bool:
         """Update job status."""
         if robot in self.current_jobs.keys():
             job = self.current_jobs.pop(robot)
@@ -204,8 +204,10 @@ class Planner:
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
-        else:
-            print(f"Warning: {robot} without current job sent a job update.")
+            return True
+
+        print(f"Warning: {robot} without current job sent a job update.")
+        return False
 
     def fetch_updated_bookings(self) -> List[Dict[str, str]]:
         """Fetch updated bookings from lsv_db."""
