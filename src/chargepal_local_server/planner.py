@@ -384,15 +384,21 @@ class Planner:
                         and job.source_station
                         and job.target_station
                     )
-            # Let all remaining available robots recharge themselves.
+            # Let all remaining available robots not at RBS recharge themselves.
             for robot in list(self.available_robots):
-                if robot not in self.current_jobs.keys():
+                robot_location: str = self.robot_infos[robot]["robot_location"]
+                if (
+                    robot not in self.current_jobs.keys()
+                    and not robot_location.startswith("RBS_")
+                ):
+                    assert robot.startswith("ChargePal")
                     job = self.add_new_job(
                         Job(
                             JobState.PENDING,
                             JobType.RECHARGE_SELF,
                             schedule=datetime.now(),
                             robot=robot,
+                            target_station=f"RBS_{robot[9:]}",
                         )
                     )  # Transition J0 + J1
                     self.current_jobs[robot] = job

@@ -39,7 +39,7 @@ class Env:
 ENV_ALL_ONE = Env(
     "robots: 1, carts: 1, RBS: 1, ADS: 1, BCS: 1, BWS: 1",
     {
-        "ChargePal1": "RBS_1",
+        "ChargePal1": "BWS_1",
         "BAT_1": "BWS_1",
     },
 )
@@ -133,7 +133,17 @@ def wait_for_job(
 
 def test_recharge_self() -> None:
     with Scenario(ENV_ALL_ONE) as scenario:
-        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
+        # Test for RECHARGE_SELF job if robot is not at RBS.
+        client = scenario.robot_clients["ChargePal1"]
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+        scenario.planner.update_robot_infos()
+        # Test for no job if robot is already at RBS.
+        try:
+            wait_for_job(client)
+            raise RuntimeError("Robot got job but should not have.")
+        except TimeoutError:
+            pass
 
 
 def test_bring_and_recharge() -> None:
