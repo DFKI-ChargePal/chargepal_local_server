@@ -74,7 +74,7 @@ message Response_Ready2PlugInADS {
 
 service Communication {
   rpc UpdateRDB(Request) returns (Response_UpdateRDB);
-  rpc PullLDB(Request) returns (Response_UpdateRDB);
+  rpc PullLDB(Request) returns (Response_PullLDB);
   rpc UpdateJobMonitor(Request) returns (Response_UpdateJobMonitor);
   rpc FetchJob(Request) returns (Response_FetchJob);
   rpc AskFreeStation(Request) returns (Response_FreeStation);
