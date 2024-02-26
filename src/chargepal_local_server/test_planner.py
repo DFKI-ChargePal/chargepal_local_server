@@ -1,5 +1,5 @@
 """
-Test script to test planner on custom scenarios.
+Test script to test planner in custom environments.
 
 The tests use scripts of local server and robot clients with grpc
 communication without ROS.
@@ -31,19 +31,19 @@ debug_ldb.connect(ldb_filepath)
 
 
 @dataclass
-class Env:
+class Config:
     counts: str
     locations: str
 
 
-ENV_ALL_ONE = Env(
+CONFIG_ALL_ONE = Config(
     "robots: 1, carts: 1, RBS: 1, ADS: 1, BCS: 1, BWS: 1",
     {
         "ChargePal1": "BWS_1",
         "BAT_1": "BWS_1",
     },
 )
-ENV_DEFAULT = Env(
+CONFIG_DEFAULT = Config(
     "robots: 2, carts: 3, RBS: 2, ADS: 2, BCS: 2, BWS: 3",
     {
         "ChargePal1": "RBS_1",
@@ -55,17 +55,17 @@ ENV_DEFAULT = Env(
 )
 
 
-class Scenario:
-    def __init__(self, env: Env) -> None:
+class Environment:
+    def __init__(self, config: Config) -> None:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        debug_ldb.counts.set(env.counts)
+        debug_ldb.counts.set(config.counts)
         debug_ldb.delete_from("orders_in")
         # Set all locations to none for entities unused
         #  to prevent them from blocking stations erroneously.
         debug_ldb.update("robot_info SET robot_location = 'NONE'")
         debug_ldb.update("cart_info SET cart_location = 'NONE'")
-        debug_ldb.update_locations(env.locations)
+        debug_ldb.update_locations(config.locations)
         self.robot_clients = {
             f"ChargePal{number}": Core("localhost:55555", f"ChargePal{number}")
             for number in range(1, debug_ldb.counts.robots + 1)
@@ -73,7 +73,7 @@ class Scenario:
         self.planner: Planner
         self.thread: Thread
 
-    def __enter__(self) -> "Scenario":
+    def __enter__(self) -> "Environment":
         os.chdir(os.path.dirname(__file__))
         self.planner = Planner(ldb_filepath)
         communication_pb2_grpc.add_CommunicationServicer_to_server(
@@ -132,12 +132,12 @@ def wait_for_job(
 
 
 def test_recharge_self() -> None:
-    with Scenario(ENV_ALL_ONE) as scenario:
+    with Environment(CONFIG_ALL_ONE) as environment:
         # Test for RECHARGE_SELF job if robot is not at RBS.
-        client = scenario.robot_clients["ChargePal1"]
+        client = environment.robot_clients["ChargePal1"]
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
-        scenario.planner.update_robot_infos()
+        environment.planner.update_robot_infos()
         # Test for no job if robot is already at RBS.
         try:
             wait_for_job(client)
@@ -147,13 +147,13 @@ def test_recharge_self() -> None:
 
 
 def test_bring_and_recharge() -> None:
-    with Scenario(ENV_ALL_ONE) as scenario:
-        client = scenario.robot_clients["ChargePal1"]
+    with Environment(CONFIG_ALL_ONE) as environment:
+        client = environment.robot_clients["ChargePal1"]
         create_sample_booking(ldb_filepath, drop_location="ADS_1")
         wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        scenario.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
+        environment.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Success")
@@ -162,79 +162,79 @@ def test_bring_and_recharge() -> None:
 
 
 def test_two_twice_in_parallel() -> None:
-    with Scenario(ENV_DEFAULT) as scenario:
+    with Environment(CONFIG_DEFAULT) as environment:
         for _ in range(2):
             # Create 2 bookings, let 2 robots bring 2 carts.
             for number in (1, 2):
                 create_sample_booking(ldb_filepath, drop_location=f"ADS_{number}")
-            cart1 = scenario.wait_for_next_job().cart
-            cart2 = scenario.wait_for_next_job().cart
-            for client in scenario.robot_clients.values():
+            cart1 = environment.wait_for_next_job().cart
+            cart2 = environment.wait_for_next_job().cart
+            for client in environment.robot_clients.values():
                 client.update_job_monitor("BRING_CHARGER", "Success")
             # Let both chargers complete while both robots recharge themselves.
             for _ in range(2):
-                scenario.wait_for_next_job()
+                environment.wait_for_next_job()
             for charger in (cart1, cart2):
-                scenario.planner.handle_charger_update(
+                environment.planner.handle_charger_update(
                     charger, ChargerCommand.BOOKING_FULFILLED
                 )
-            for client in scenario.robot_clients.values():
+            for client in environment.robot_clients.values():
                 client.update_job_monitor("RECHARGE_SELF", "Success")
             # Let robots retrieve the carts, remember the jobs.
-            job1 = scenario.wait_for_next_job()
-            job2 = scenario.wait_for_next_job()
+            job1 = environment.wait_for_next_job()
+            job2 = environment.wait_for_next_job()
             for job in (job1, job2):
-                scenario.robot_clients[job.robot_name].update_job_monitor(
+                environment.robot_clients[job.robot_name].update_job_monitor(
                     job.job_type, "Success"
                 )
             # Stop recharging the chargers which were not stowed,
             #  while both robots recharge themselves.
             for _ in range(2):
-                scenario.wait_for_next_job()
+                environment.wait_for_next_job()
             for job in (job1, job2):
                 assert job.job_type in (
                     "RECHARGE_CHARGER",
                     "STOW_CHARGER",
                 ), job.job_type
                 if job.job_type == "RECHARGE_CHARGER":
-                    scenario.planner.handle_charger_update(
+                    environment.planner.handle_charger_update(
                         job.cart, ChargerCommand.STOP_RECHARGING
                     )
-            for client in scenario.robot_clients.values():
+            for client in environment.robot_clients.values():
                 client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
 def test_status_update() -> None:
-    with Scenario(ENV_ALL_ONE) as scenario:
-        client = scenario.robot_clients["ChargePal1"]
+    with Environment(CONFIG_ALL_ONE) as environment:
+        client = environment.robot_clients["ChargePal1"]
         create_sample_booking(
             ldb_filepath, drop_location="ADS_1", charging_session_status="booked"
         )
-        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
+        wait_for_job(environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         debug_ldb.update("orders_in SET charging_session_status = 'checked_in'")
-        wait_for_job(scenario.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
+        wait_for_job(environment.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
 
 
 def test_plug_in_handshake() -> None:
-    with Scenario(ENV_ALL_ONE) as scenario:
-        client = scenario.robot_clients["ChargePal1"]
+    with Environment(CONFIG_ALL_ONE) as environment:
+        client = environment.robot_clients["ChargePal1"]
         create_sample_booking(ldb_filepath, drop_location="ADS_1")
         wait_for_job(client, JobType.BRING_CHARGER)
         get_status = lambda: debug_ldb.select(
             "charging_session_status FROM orders_in",
         )[-1][0]
         assert get_status() == "checked_in", get_status()
-        assert not scenario.planner.robot_ready2plug("ChargePal1")
+        assert not environment.planner.robot_ready2plug("ChargePal1")
         assert get_status() == "robot_ready2plug", get_status()
-        assert not scenario.planner.robot_ready2plug("ChargePal1")
+        assert not environment.planner.robot_ready2plug("ChargePal1")
         debug_ldb.update(
             "orders_in SET charging_session_status == 'BEV_pending'"
             " WHERE charging_session_status == 'robot_ready2plug'"
         )
-        assert not scenario.planner.robot_ready2plug("ChargePal1")
-        scenario.planner.handle_updated_bookings()
-        assert scenario.planner.robot_ready2plug("ChargePal1")
+        assert not environment.planner.robot_ready2plug("ChargePal1")
+        environment.planner.handle_updated_bookings()
+        assert environment.planner.robot_ready2plug("ChargePal1")
 
 
 if __name__ == "__main__":
