@@ -86,7 +86,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     ) -> Response_UpdateJobMonitor:
         with self.request_lock:
             self.job_success_status = self.planner.update_job(
-                request.robot_name, request.job_name
+                request.robot_name, request.job_name, request.job_status
             )
             response = Response_UpdateJobMonitor(success=self.job_success_status)
         return response

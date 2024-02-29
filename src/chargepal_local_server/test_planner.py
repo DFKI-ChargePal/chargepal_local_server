@@ -161,6 +161,29 @@ def test_bring_and_recharge() -> None:
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
+def test_failures() -> None:
+    with Environment(CONFIG_ALL_ONE) as environment:
+        client = environment.robot_clients["ChargePal1"]
+        create_sample_booking(ldb_filepath, drop_location="ADS_1")
+        job = wait_for_job(client, JobType.BRING_CHARGER)
+        client.update_job_monitor("BRING_CHARGER", "Failure")
+        assert job.cart in environment.planner.available_carts, job.cart
+        job = wait_for_job(client, JobType.BRING_CHARGER)
+        client.update_job_monitor("BRING_CHARGER", "Success")
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Failure")
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.planner.handle_charger_update(job.cart, ChargerCommand.RETRIEVE_CHARGER)
+        client.update_job_monitor("RECHARGE_SELF", "Failure")
+        job = wait_for_job(client, JobType.RECHARGE_CHARGER)
+        client.update_job_monitor("RECHARGE_CHARGER", "Failure")
+        assert job.cart in environment.planner.available_carts, job.cart
+        # Note: If recharging charger keeps failing after recovery,
+        #  nothing more can be done for it automatically.
+        wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+
+
 def test_two_twice_in_parallel() -> None:
     with Environment(CONFIG_DEFAULT) as environment:
         for _ in range(2):
@@ -240,6 +263,7 @@ def test_plug_in_handshake() -> None:
 if __name__ == "__main__":
     test_recharge_self()
     test_bring_and_recharge()
+    test_failures()
     test_two_twice_in_parallel()
     test_status_update()
     test_plug_in_handshake()

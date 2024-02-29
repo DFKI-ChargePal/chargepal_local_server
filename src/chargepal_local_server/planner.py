@@ -39,6 +39,7 @@ class JobState(IntEnum):
     PENDING = 2
     ONGOING = 3
     COMPLETE = 4
+    FAILED = 5
 
     def __repr__(self) -> str:
         return self.name
@@ -183,9 +184,13 @@ class Planner:
             self.access.fetch_by_first_header("cart_info", access_ldb.CART_INFO_HEADERS)
         )
 
-    def update_job(self, robot: str, job_type: str) -> bool:
+    def update_job(self, robot: str, job_type: str, job_status: str) -> bool:
         """Update job status."""
-        if robot in self.current_jobs.keys():
+        if robot not in self.current_jobs.keys():
+            print(f"Warning: {robot} without current job sent a job update.")
+            return False
+
+        if job_status == "Success":
             job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
             assert job.robot and job.robot == robot and job.target_station
@@ -205,9 +210,31 @@ class Planner:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
             return True
-
-        print(f"Warning: {robot} without current job sent a job update.")
-        return False
+        if job_status == "Failure":
+            job = self.current_jobs.pop(robot)
+            job.state = JobState.FAILED
+            print(f"Warning: {job} for {robot} failed!")
+            assert job.robot and job.robot == robot
+            assert job_type == job.type.name
+            if (
+                job.target_station
+                and job.target_station in self.current_reservations.keys()
+            ):
+                assert self.current_reservations[job.target_station] == job.cart
+                self.current_reservations.pop(job.target_station)
+            if job.cart:
+                if job.cart in self.current_bookings.keys():
+                    booking_id = self.current_bookings.pop(job.cart)
+                    assert booking_id not in self.open_bookings
+                    self.open_bookings.append(booking_id)
+                if job.cart not in self.available_carts:
+                    self.available_carts.append(job.cart)
+            return True
+        if job_status == "Recovery":
+            pass
+        elif job_status == "Ongoing":
+            pass
+        raise ValueError(f"Unknown job status: {job_status}")
 
     def fetch_updated_bookings(self) -> List[Dict[str, str]]:
         """Fetch updated bookings from lsv_db."""
