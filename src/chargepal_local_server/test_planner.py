@@ -8,7 +8,7 @@ are not suited as real-time tests.
 """
 
 #!/usr/bin/env python3
-from typing import Optional, Type
+from typing import Iterable, Optional, Type
 from types import TracebackType
 from concurrent import futures
 from dataclasses import dataclass
@@ -23,6 +23,8 @@ from create_ldb_orders import create_sample_booking
 from planner import ChargerCommand, JobType, Planner
 from server import CommunicationServicer
 from chargepal_client.core import Core
+from pscedev.scenario import SCENARIO1
+from pscedev import BookingEvent, Event, Monitoring, Scenario
 
 
 @dataclass
@@ -30,16 +32,24 @@ class Config:
     counts: str
     locations: str
 
+    @staticmethod
+    def get_counts_from_scenario(scenario: Scenario) -> str:
+        return (
+            f"ADS: {scenario.ADS_count}, BCS: {scenario.BCS_count},"
+            f" BWS: {scenario.BWS_count}, RBS: {scenario.RBS_count},"
+            f" robots: {scenario.robot_count}, carts: {scenario.cart_count}"
+        )
+
 
 CONFIG_ALL_ONE = Config(
-    "robots: 1, carts: 1, RBS: 1, ADS: 1, BCS: 1, BWS: 1",
+    "ADS: 1, BCS: 1, BWS: 1, RBS: 1, robots: 1, carts: 1",
     {
         "ChargePal1": "BWS_1",
         "BAT_1": "BWS_1",
     },
 )
 CONFIG_DEFAULT = Config(
-    "robots: 2, carts: 3, RBS: 2, ADS: 2, BCS: 2, BWS: 3",
+    "ADS: 2, BCS: 2, BWS: 3, RBS: 2, robots: 2, carts: 3",
     {
         "ChargePal1": "RBS_1",
         "ChargePal2": "RBS_2",
@@ -105,6 +115,11 @@ class Environment:
             if time.time() - time_start >= timeout:
                 raise TimeoutError("No job.")
 
+    def handle_events(self, events: Iterable[Event]) -> None:
+        for event in events:
+            if isinstance(event, BookingEvent):
+                create_sample_booking(drop_location=event.planned_BEV_location)
+
 
 def wait_for_job(
     client: Core, job_type: Optional[JobType] = None, timeout: float = 1.0
@@ -142,18 +157,40 @@ def test_recharge_self() -> None:
 
 
 def test_bring_and_recharge() -> None:
+    assert Config.get_counts_from_scenario(SCENARIO1) == CONFIG_ALL_ONE.counts
+    monitoring = Monitoring(SCENARIO1)
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(drop_location="ADS_1")
-        wait_for_job(client, JobType.BRING_CHARGER)
-        client.update_job_monitor("BRING_CHARGER", "Success")
+        # Book and let car appear.
+        environment.handle_events(monitoring.get_next_events())
+        # Move car to ADS_1.
+        monitoring.update_car_at_ads("ADS_1")
+        # Check in.
+        environment.handle_events(monitoring.get_next_events())
+        # Bring BAT_1 to ADS_1.
+        job = wait_for_job(client, JobType.BRING_CHARGER)
+        assert job.target_station == "ADS_1"
+        status = monitoring.get_job_status("BRING_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("BRING_CHARGER", status)
+        # Recharge ChargePal1.
         wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+        # Let BAT_1 finish charging.
         environment.planner.handle_charger_update(
             "BAT_1", ChargerCommand.RETRIEVE_CHARGER
         )
-        client.update_job_monitor("RECHARGE_SELF", "Success")
-        wait_for_job(client, JobType.RECHARGE_CHARGER)
-        client.update_job_monitor("RECHARGE_CHARGER", "Success")
+        monitoring.update_car_charged("ADS_1")
+        # Bring BAT_1 to BCS_1.
+        job = wait_for_job(client, JobType.RECHARGE_CHARGER)
+        assert job.target_station == "BCS_1"
+        status = monitoring.get_job_status("RECHARGE_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("RECHARGE_CHARGER", status)
+        # Check out.
+        environment.handle_events(monitoring.get_next_events())
+        assert not monitoring.exists_event()
+        # Recharge ChargePal1.
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
