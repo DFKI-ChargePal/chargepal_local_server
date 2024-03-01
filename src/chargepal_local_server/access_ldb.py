@@ -4,6 +4,7 @@ from types import TracebackType
 from datetime import datetime, timedelta
 import mysql.connector
 import mysql.connector.cursor
+import os
 import re
 import sqlite3
 
@@ -113,8 +114,8 @@ def parse_any(obj: object) -> object:
 
 
 class SQLite3Access:
-    def __init__(self, ldb_path: str) -> None:
-        self.connection = sqlite3.connect(ldb_path)
+    def __init__(self, ldb_filepath: str) -> None:
+        self.connection = sqlite3.connect(ldb_filepath)
         self.cursor = self.connection.cursor()
 
     def __enter__(self) -> sqlite3.Cursor:
@@ -155,7 +156,11 @@ class MySQLAccess:
 
 class DatabaseAccess:
     def __init__(self, ldb_filepath: Optional[str] = None) -> None:
-        self.ldb_filepath = ldb_filepath if ldb_filepath else "db/ldb.db"
+        self.ldb_filepath = (
+            ldb_filepath
+            if ldb_filepath
+            else os.path.join(os.path.dirname(__file__), "db/ldb.db")
+        )
         try:
             with MySQLAccess():
                 pass

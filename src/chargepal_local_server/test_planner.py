@@ -25,11 +25,6 @@ from server import CommunicationServicer
 from chargepal_client.core import Core
 
 
-# Note: Reconnect on file level for pytest.
-ldb_filepath = debug_ldb.get_db_filepath(__file__, "test_ldb.db")
-debug_ldb.connect(ldb_filepath)
-
-
 @dataclass
 class Config:
     counts: str
@@ -75,7 +70,7 @@ class Environment:
 
     def __enter__(self) -> "Environment":
         os.chdir(os.path.dirname(__file__))
-        self.planner = Planner(ldb_filepath)
+        self.planner = Planner()
         communication_pb2_grpc.add_CommunicationServicer_to_server(
             CommunicationServicer(self.planner), self.server
         )
@@ -149,11 +144,13 @@ def test_recharge_self() -> None:
 def test_bring_and_recharge() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(ldb_filepath, drop_location="ADS_1")
+        create_sample_booking(drop_location="ADS_1")
         wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        environment.planner.handle_charger_update("BAT_1", ChargerCommand.RETRIEVE_CHARGER)
+        environment.planner.handle_charger_update(
+            "BAT_1", ChargerCommand.RETRIEVE_CHARGER
+        )
         client.update_job_monitor("RECHARGE_SELF", "Success")
         wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Success")
@@ -164,7 +161,7 @@ def test_bring_and_recharge() -> None:
 def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(ldb_filepath, drop_location="ADS_1")
+        create_sample_booking(drop_location="ADS_1")
         job = wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Failure")
         assert job.cart in environment.planner.available_carts, job.cart
@@ -173,7 +170,9 @@ def test_failures() -> None:
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        environment.planner.handle_charger_update(job.cart, ChargerCommand.RETRIEVE_CHARGER)
+        environment.planner.handle_charger_update(
+            job.cart, ChargerCommand.RETRIEVE_CHARGER
+        )
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
@@ -189,7 +188,7 @@ def test_two_twice_in_parallel() -> None:
         for _ in range(2):
             # Create 2 bookings, let 2 robots bring 2 carts.
             for number in (1, 2):
-                create_sample_booking(ldb_filepath, drop_location=f"ADS_{number}")
+                create_sample_booking(drop_location=f"ADS_{number}")
             cart1 = environment.wait_for_next_job().cart
             cart2 = environment.wait_for_next_job().cart
             for client in environment.robot_clients.values():
@@ -230,9 +229,7 @@ def test_two_twice_in_parallel() -> None:
 def test_status_update() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(
-            ldb_filepath, drop_location="ADS_1", charging_session_status="booked"
-        )
+        create_sample_booking(drop_location="ADS_1", charging_session_status="booked")
         wait_for_job(environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         debug_ldb.update("orders_in SET charging_session_status = 'checked_in'")
@@ -242,7 +239,7 @@ def test_status_update() -> None:
 def test_plug_in_handshake() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(ldb_filepath, drop_location="ADS_1")
+        create_sample_booking(drop_location="ADS_1")
         wait_for_job(client, JobType.BRING_CHARGER)
         get_status = lambda: debug_ldb.select(
             "charging_session_status FROM orders_in",

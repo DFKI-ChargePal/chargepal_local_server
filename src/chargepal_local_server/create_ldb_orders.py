@@ -6,7 +6,7 @@ import sys
 
 
 def create_sample_booking(
-    db_filepath: str = "db/ldb.db",
+    db_filepath: str = os.path.join(os.path.dirname(__file__), "db/ldb.db"),
     drop_location: str = "021",
     charging_session_status: str = "checked_in",
 ) -> None:
@@ -60,7 +60,8 @@ def create_sample_booking(
 
 
 def create_table(
-    db_filepath: str = "db/ldb.db", drop_existing_table: bool = False
+    db_filepath: str = os.path.join(os.path.dirname(__file__), "db/ldb.db"),
+    drop_existing_table: bool = False,
 ) -> None:
     connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
