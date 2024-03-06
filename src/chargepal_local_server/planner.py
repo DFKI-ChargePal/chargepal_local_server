@@ -210,7 +210,7 @@ class Planner:
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
-            elif job.type in (JobType.RECHARGE_CHARGER, JobType.STOW_CHARGER):
+            elif job.type in JobType.STOW_CHARGER:
                 # Note: Assume cart is always available for development until charger can confirm it in reality.
                 assert job.cart not in self.available_carts
                 self.available_carts.append(job.cart)
