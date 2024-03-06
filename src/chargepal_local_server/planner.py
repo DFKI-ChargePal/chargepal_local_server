@@ -210,6 +210,10 @@ class Planner:
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
+            elif job.type in (JobType.RECHARGE_CHARGER, JobType.STOW_CHARGER):
+                # Note: Assume cart is always available for development until charger can confirm it in reality.
+                assert job.cart not in self.available_carts
+                self.available_carts.append(job.cart)
             return True
         if job_status == "Failure":
             job = self.current_jobs.pop(robot)
@@ -374,10 +378,15 @@ class Planner:
         """Schedule open and due jobs for available robots."""
         with self.availability_lock:
             for job in list(self.open_jobs):
-                if not self.available_carts or not self.available_robots:
+                if not self.available_robots:
+                    print("No robot available.")
                     return
 
                 if job.type == JobType.BRING_CHARGER:
+                    if not self.available_carts:
+                        print("No cart available.")
+                        continue
+
                     assert job.booking_id and job.target_station
                     # Select nearest cart to prefer transporting less.
                     cart = self.pop_nearest_cart(
@@ -423,6 +432,8 @@ class Planner:
                             and job.source_station
                             and job.target_station
                         )
+                    else:
+                        print("Warning: No station available.")
             # Let all remaining available robots not at RBS recharge themselves.
             for robot in list(self.available_robots):
                 robot_location: str = self.robot_infos[robot]["robot_location"]
