@@ -217,6 +217,16 @@ class DatabaseAccess:
             for entries in all_entries
         ]
 
+    def delete_bookings(self) -> None:
+        """Delete all bookings from orders_in in lsv_db."""
+        sql_operation = "DELETE FROM orders_in"
+        try:
+            with MySQLAccess() as cursor:
+                cursor.execute(sql_operation)
+        except mysql.connector.errors.Error:
+            with SQLite3Access(self.ldb_filepath) as cursor:
+                cursor.execute(sql_operation)
+
     def update_location(
         self, location: str, robot: str, cart: Optional[str] = None
     ) -> None:

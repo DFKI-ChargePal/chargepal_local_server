@@ -105,9 +105,8 @@ class Planner:
         self.active = True
         # Manage current states of plug-in jobs for bookings.
         self.plugin_states: Dict[int, PlugInState] = {}
-        # Fetch and discard existing bookings from the database for development phase.
-        self.fetch_updated_bookings()
-        self.last_fetched_change = datetime.now() + timedelta(seconds=1.0)
+        # Delete existing bookings from the database for development phase.
+        self.access.delete_bookings()
 
     def add_new_job(self, job: Job) -> Job:
         """Add newly created job to all relevant monitoring."""
