@@ -76,12 +76,12 @@ def main():
         cart_data_3,
     )
 
-    robots_count = ("robots_count", 2)
-    carts_count = ("carts_count", 3)
-    RBS_count = ("RBS_count", 2)
-    ADS_count = ("ADS_count", 2)
-    BCS_count = ("BCS_count", 2)
-    BWS_count = ("BWS_count", 3)
+    robots_count = ("robots_count", 1)
+    carts_count = ("carts_count", 1)
+    RBS_count = ("RBS_count", 1)
+    ADS_count = ("ADS_count", 1)
+    BCS_count = ("BCS_count", 0)
+    BWS_count = ("BWS_count", 1)
     cursor.execute("DELETE FROM env_info")
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", robots_count)
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", carts_count)
