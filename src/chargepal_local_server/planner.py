@@ -194,7 +194,7 @@ class Planner:
         if job_status in ("Success", "Recovery"):
             job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
-            assert job.robot and job.robot == robot and job.target_station
+            assert job.robot and job.robot == robot and job.target_station, job
             assert job_type == job.type.name, (
                 f"{robot} sent update of different job '{job_type}'"
                 f" than its current job '{job.type.name}'."
@@ -397,29 +397,32 @@ class Planner:
                 elif job.type == JobType.RETRIEVE_CHARGER:
                     assert job.cart and job.source_station
                     robot = self.pop_nearest_robot(job.source_station)
-                    self.assign_job(job, robot)  # Transition J3
                     target_station = self.pop_nearest_station(
                         self.cart_infos[job.cart]["cart_location"]
                     )
-                    assert target_station
-                    if target_station.startswith("BCS_"):
-                        job.type = JobType.RECHARGE_CHARGER
+                    # Note: In a real setup, there should always exist at least a BWS as target_station.
+                    if target_station:
+                        self.assign_job(job, robot)  # Transition J3
+                        if target_station.startswith("BCS_"):
+                            job.type = JobType.RECHARGE_CHARGER
+                            assert (
+                                target_station not in self.current_reservations.keys()
+                            ), f"{target_station} is already reserved for {self.current_reservations[target_station]}."
+                            self.current_reservations[target_station] = job.cart
+                            job.target_station = target_station
+                        elif target_station.startswith("BWS_"):
+                            job.type = JobType.STOW_CHARGER
+                            job.target_station = target_station
+                        else:
+                            raise RuntimeError(
+                                f"Invalid target station {target_station}!"
+                            )
                         assert (
-                            target_station not in self.current_reservations.keys()
-                        ), f"{target_station} is already reserved for {self.current_reservations[target_station]}."
-                        self.current_reservations[target_station] = job.cart
-                        job.target_station = target_station
-                    elif target_station.startswith("BWS_"):
-                        job.type = JobType.STOW_CHARGER
-                        job.target_station = target_station
-                    else:
-                        raise RuntimeError(f"Invalid target station {target_station}!")
-                    assert (
-                        job.robot
-                        and job.cart
-                        and job.source_station
-                        and job.target_station
-                    )
+                            job.robot
+                            and job.cart
+                            and job.source_station
+                            and job.target_station
+                        )
             # Let all remaining available robots not at RBS recharge themselves.
             for robot in list(self.available_robots):
                 robot_location: str = self.robot_infos[robot]["robot_location"]
