@@ -15,6 +15,7 @@ def loop(operation_time: float, loop_time: float) -> None:
         create_sample_booking()
         print(f"Wait for {operation_time} seconds.")
         time.sleep(operation_time)
+        print("Wait for database update by charger.")
         while True:
             status = debug_ldb.select("charging_session_status FROM orders_in")[-1][0]
             if status == "plugin_success":
