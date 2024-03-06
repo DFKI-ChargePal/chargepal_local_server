@@ -190,6 +190,7 @@ class Planner:
             print(f"Warning: {robot} without current job sent a job update.")
             return False
 
+        print(f"{robot} sends update '{job_status}' for {self.current_jobs[robot]}.")
         if job_status in ("Success", "Recovery"):
             job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
