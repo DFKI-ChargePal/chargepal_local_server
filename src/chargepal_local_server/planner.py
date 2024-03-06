@@ -107,6 +107,7 @@ class Planner:
         self.plugin_states: Dict[int, PlugInState] = {}
         # Fetch and discard existing bookings from the database for development phase.
         self.fetch_updated_bookings()
+        self.last_fetched_change = datetime.now() + timedelta(seconds=1.0)
 
     def add_new_job(self, job: Job) -> Job:
         """Add newly created job to all relevant monitoring."""
