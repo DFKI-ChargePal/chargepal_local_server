@@ -177,9 +177,7 @@ def test_bring_and_recharge() -> None:
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_1 finish charging.
-        environment.planner.handle_charger_update(
-            "BAT_1", ChargerCommand.RETRIEVE_CHARGER
-        )
+        debug_ldb.update("orders_in SET charging_session_status = 'finished'")
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_1 to BCS_1.
         job = wait_for_job(client, JobType.RECHARGE_CHARGER)
@@ -207,9 +205,7 @@ def test_failures() -> None:
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        environment.planner.handle_charger_update(
-            job.cart, ChargerCommand.RETRIEVE_CHARGER
-        )
+        debug_ldb.update("orders_in SET charging_session_status = 'finished'")
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")

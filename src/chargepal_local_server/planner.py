@@ -322,6 +322,10 @@ class Planner:
                     self.open_bookings.remove(booking_id)  # Transition B1
                 elif booking["charging_session_status"] == "BEV_pending":
                     self.plugin_states[booking_id] = PlugInState.BEV_PENDING
+                elif booking["charging_session_status"] == "finished":
+                    for cart, check in list(self.current_bookings.items()):
+                        if check == booking["charging_session_id"]:
+                            self.handle_charger_update(cart, ChargerCommand.BOOKING_FULFILLED)
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
