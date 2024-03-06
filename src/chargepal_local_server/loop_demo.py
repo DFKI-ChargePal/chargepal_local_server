@@ -11,16 +11,21 @@ DEFAULT_LOOP_TIME = 10.0
 
 def loop(operation_time: float, loop_time: float) -> None:
     while True:
+        print("Create new booking.")
         create_sample_booking()
+        print(f"Wait for {operation_time} seconds.")
         time.sleep(operation_time)
         while True:
             status = debug_ldb.select("charging_session_status FROM orders_in")[-1][0]
             if status == "plugin_success":
+                time.sleep(1.0)
+                print("Finish charging vehicle.")
                 debug_ldb.update(
                     "orders_in SET charging_session_status = 'finished'"
                     " WHERE charging_session_status = 'plugin_success'"
                 )
                 break
+        print(f"Wait for {loop_time} seconds.")
         time.sleep(loop_time)
 
 
