@@ -190,7 +190,7 @@ class Planner:
             print(f"Warning: {robot} without current job sent a job update.")
             return False
 
-        if job_status == "Success":
+        if job_status in ("Success", "Recovery"):
             job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
             assert job.robot and job.robot == robot and job.target_station
@@ -325,7 +325,9 @@ class Planner:
                 elif booking["charging_session_status"] == "finished":
                     for cart, check in list(self.current_bookings.items()):
                         if check == booking["charging_session_id"]:
-                            self.handle_charger_update(cart, ChargerCommand.BOOKING_FULFILLED)
+                            self.handle_charger_update(
+                                cart, ChargerCommand.BOOKING_FULFILLED
+                            )
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
