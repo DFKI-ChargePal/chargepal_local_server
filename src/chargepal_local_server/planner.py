@@ -191,7 +191,7 @@ class Planner:
             return False
 
         print(f"{robot} sends update '{job_status}' for {self.current_jobs[robot]}.")
-        if job_status in ("Success", "Recovery"):
+        if job_status == "Success":
             job = self.current_jobs.pop(robot)
             job.state = JobState.COMPLETE  # Transition J9
             assert job.robot and job.robot == robot and job.target_station, job
@@ -210,22 +210,25 @@ class Planner:
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                 self.access.update_session_status(job.booking_id, "plugin_success")
-            elif job.type in JobType.STOW_CHARGER:
+            elif job.type == JobType.STOW_CHARGER:
                 # Note: Assume cart is always available for development until charger can confirm it in reality.
-                assert job.cart not in self.available_carts
+                assert job.cart not in self.available_carts, job
                 self.available_carts.append(job.cart)
             return True
         if job_status == "Failure":
             job = self.current_jobs.pop(robot)
             job.state = JobState.FAILED
             print(f"Warning: {job} for {robot} failed!")
-            assert job.robot and job.robot == robot
-            assert job_type == job.type.name
+            assert job.robot and job.robot == robot, (robot, job)
+            assert job_type == job.type.name, (job_type, job)
             if (
                 job.target_station
                 and job.target_station in self.current_reservations.keys()
             ):
-                assert self.current_reservations[job.target_station] == job.cart
+                assert self.current_reservations[job.target_station] == job.cart, (
+                    self.current_reservations,
+                    job,
+                )
                 self.current_reservations.pop(job.target_station)
             if job.cart:
                 if job.cart in self.current_bookings.keys():
@@ -379,12 +382,10 @@ class Planner:
         with self.availability_lock:
             for job in list(self.open_jobs):
                 if not self.available_robots:
-                    print("No robot available.")
                     return
 
                 if job.type == JobType.BRING_CHARGER:
                     if not self.available_carts:
-                        print("No cart available.")
                         continue
 
                     assert job.booking_id and job.target_station
