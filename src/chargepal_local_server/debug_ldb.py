@@ -4,45 +4,46 @@ import re
 import sqlite3
 
 
-def get_db_filepath(reference_path: str, filename: str) -> str:
-    """
-    Compose path to db file using reference_path's directory name, "db/", and filename.
-    """
-    return os.path.join(os.path.dirname(reference_path), "db/", filename)
-
-
-db_path = get_db_filepath(__file__, "ldb.db")
-connection = sqlite3.connect(db_path)
+db_filepath = os.path.join(os.path.dirname(__file__), "db/ldb.db")
+connection = sqlite3.connect(db_filepath)
 cursor = connection.cursor()
 
 
-def connect(path: Optional[str] = None) -> None:
-    """(Re-)Connect to ldb at path if given, else the global db_path."""
-    global db_path, connection, cursor
-    if path:
-        db_path = path
-    connection = sqlite3.connect(db_path)
+def connect(filepath: Optional[str] = None) -> None:
+    """(Re-)Connect to database at filepath if given, else to the global db_filepath."""
+    global db_filepath, connection, cursor
+    if filepath:
+        db_filepath = filepath
+    connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
 
 
-def show_tables(print_results: bool = False) -> List[Tuple[str, ...]]:
-    """Return and optionally print all tables in the ldb."""
-    cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-    results = cursor.fetchall()
-    if print_results:
-        print(results)
+def show_tables() -> List[str]:
+    """Return all table names."""
+    cursor.execute("SELECT name FROM sqlite_master WHERE type = 'table';")
+    results: List[str] = [entries[0] for entries in cursor.fetchall()]
     return results
 
 
-def delete_from(table: str) -> None:
-    """Delete all entries from table."""
-    cursor.execute(f"DELETE FROM {table};")
-    connection.commit()
-
-
-def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
+def delete_from(sql: str) -> None:
     """
-    Return and optionally print results of a "SELECT <sql>;" statement.
+    Execute a "DELETE FROM <sql>;" statement.
+
+    Example:
+    delete_from("orders_in where charging_session_id = 1079")
+    """
+    sql = f"DELETE FROM {sql};"
+    try:
+        cursor.execute(sql)
+        connection.commit()
+    except sqlite3.Error as e:
+        print(sql)
+        print(f"sqlite3.{type(e).__name__}: {e}")
+
+
+def select(sql: str) -> List[Tuple[object, ...]]:
+    """
+    Return results of a "SELECT <sql>;" statement.
     If no "FROM" keyword is used, "* FROM " is prepended.
 
     Examples:
@@ -55,13 +56,7 @@ def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
         sql = f"SELECT {sql};"
         connection.commit()
         cursor.execute(sql)
-        header = str(tuple(entries[0] for entries in cursor.description))
         results = cursor.fetchall()
-        if print_results:
-            print(header)
-            print("-" * len(header))
-            for entries in results:
-                print(entries)
         return results
     except sqlite3.Error as e:
         print(sql)
@@ -69,9 +64,22 @@ def select(sql: str, print_results: bool = False) -> List[Tuple[str, ...]]:
         return []
 
 
+def print_select(sql: str) -> None:
+    """
+    Print results of a "SELECT <sql>;" statement with table headers.
+    If no "FROM" keyword is used, "* FROM " is prepended.
+    """
+    results = select(sql)
+    header = str(tuple(entries[0] for entries in cursor.description))
+    print(header)
+    print("-" * len(header))
+    for entries in results:
+        print(entries)
+
+
 def update(sql: str) -> None:
     """
-    Execute a "UPDATE <sql>; statement.
+    Execute a "UPDATE <sql>;" statement.
 
     Example:
     update("robot_info set robot_location = 'ADS_1' where robot_name = 'ChargePal1'")
@@ -121,13 +129,12 @@ class ParkingAreaCounts:
     """
 
     def __repr__(self) -> str:
-        return str({f"{name.replace('_count', '')}": count for name, count in select("env_info")})
+        entries: List[Tuple[str, int]] = select("env_info")
+        return str({f"{name.replace('_count', '')}": count for name, count in entries})
 
     @staticmethod
     def select(prefix: str) -> int:
-        return select(
-            f"count FROM env_info WHERE info = '{prefix}_count'", print_results=False
-        )
+        return select(f"count FROM env_info WHERE info = '{prefix}_count'")
 
     @staticmethod
     def update(prefix: str, value: int) -> None:
