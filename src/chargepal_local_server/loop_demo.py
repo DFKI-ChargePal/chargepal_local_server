@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 import sys
 import time
-import debug_ldb
-from create_ldb_orders import create_sample_booking
+from chargepal_local_server import debug_ldb
+from chargepal_local_server.create_ldb_orders import create_sample_booking
 
 
 DEFAULT_OPERATION_TIME = 20.0

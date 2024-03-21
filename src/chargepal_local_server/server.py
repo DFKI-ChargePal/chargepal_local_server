@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 from typing import Any
 from concurrent import futures
-import communication_pb2_grpc
-import free_station
+from chargepal_local_server import communication_pb2_grpc
+from chargepal_local_server import free_station
 import grpc
 import threading
-import update_ldb
-import read_serialize_ldb
-from communication_pb2 import (
+from chargepal_local_server import update_ldb
+from chargepal_local_server import read_serialize_ldb
+from chargepal_local_server.communication_pb2 import (
     Request,
     Response_FetchJob,
     Response_FreeStation,
@@ -19,7 +19,7 @@ from communication_pb2 import (
     Response_UpdateRDB,
     Response_PullLDB,
 )
-from planner import Planner
+from chargepal_local_server.planner import Planner
 
 
 class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):

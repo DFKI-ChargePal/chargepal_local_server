@@ -6,8 +6,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from enum import IntEnum
 from threading import Lock
-from access_ldb import DatabaseAccess
-import access_ldb
+from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server import access_ldb
 import time
 
 

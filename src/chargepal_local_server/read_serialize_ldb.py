@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 import sqlite3
-import communication_pb2
+from chargepal_local_server import communication_pb2
 
 
 def read_serialize() -> communication_pb2.Response_UpdateRDB:

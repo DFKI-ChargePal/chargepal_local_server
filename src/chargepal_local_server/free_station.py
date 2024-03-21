@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from typing import Dict, Iterable, List, Set, Tuple, Union
 from collections import defaultdict
 import sqlite3

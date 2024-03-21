@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from typing import List, Tuple
 import sqlite3
 import ast

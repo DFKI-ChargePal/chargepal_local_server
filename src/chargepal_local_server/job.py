@@ -1,5 +1,4 @@
-#!/usr/bin/env python3
-from server import CommunicationServicer
+from chargepal_local_server.server import CommunicationServicer
 
 
 def fetch_job(robot_name: str) -> str:

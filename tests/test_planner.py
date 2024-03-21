@@ -13,15 +13,15 @@ from types import TracebackType
 from concurrent import futures
 from dataclasses import dataclass
 from threading import Thread
-from communication_pb2 import Response_Job
-import communication_pb2_grpc
+from chargepal_local_server.communication_pb2 import Response_Job
+from chargepal_local_server import communication_pb2_grpc
 import grpc
 import os
 import time
-import debug_ldb
-from create_ldb_orders import create_sample_booking
-from planner import ChargerCommand, JobType, Planner
-from server import CommunicationServicer
+from chargepal_local_server import debug_ldb
+from chargepal_local_server.create_ldb_orders import create_sample_booking
+from chargepal_local_server.planner import ChargerCommand, JobType, Planner
+from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
 from pscedev.scenario import SCENARIO1
 from pscedev import BookingEvent, Event, Monitoring, Scenario
