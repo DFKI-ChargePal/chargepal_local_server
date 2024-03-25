@@ -244,7 +244,7 @@ class Planner:
             pass
         raise ValueError(f"Unknown job status: {job_status}")
 
-    def fetch_updated_bookings(self) -> List[Dict[str, str]]:
+    def fetch_updated_bookings(self) -> List[Dict[str, object]]:
         """Fetch updated bookings from lsv_db."""
         updated_bookings = self.access.fetch_updated_bookings(
             access_ldb.BOOKING_INFO_HEADERS, self.last_fetched_change

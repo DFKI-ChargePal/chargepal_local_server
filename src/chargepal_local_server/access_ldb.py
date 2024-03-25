@@ -196,7 +196,7 @@ class DatabaseAccess:
     ) -> List[Dict[str, object]]:
         """
         Return from orders_in in lsv_db a dict of headers and entries
-        for which last_change is greater than threshold.
+        for which last_change is greater than or equal to threshold.
 
         Note: You must handle updates within the same second.
         """
