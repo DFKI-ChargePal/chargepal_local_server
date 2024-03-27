@@ -6,6 +6,14 @@ import os
 from sqlmodel import Field, SQLModel, create_engine
 
 
+def to_str(obj: object) -> str:
+    return (
+        str(obj)
+        if obj is None or isinstance(obj, (bool, float, int, str))
+        else f"'{obj}'"
+    )
+
+
 class RobotInfo(SQLModel, table=True):
     robot_name: str = Field(primary_key=True)
     robot_location: str
@@ -45,19 +53,47 @@ class StationInfo(SQLModel, table=True):
     available: bool
 
 
-class JobInfo(SQLModel, table=True):
-    job_id: int = Field(primary_key=True)
-    job_type: str
-    job_state: str
+class Job(SQLModel, table=True):
+    id: int = Field(primary_key=True)
+    type: str
+    state: str
     schedule: datetime
     deadline: Optional[datetime]
-    booking_id: int
+    booking_id: Optional[int]
+    assigned: bool
     robot_name: Optional[str]
     cart_name: Optional[str]
     source_station: Optional[str]
     target_station: Optional[str]
-    job_start: Optional[datetime]
-    job_end: Optional[datetime]
+    start: Optional[datetime]
+    end: Optional[datetime]
+
+    def __str__(self) -> str:
+        return (
+            f"Job(id={to_str(self.id)}, type={to_str(self.type)}, state={to_str(self.state)},"
+            f" schedule={to_str(self.schedule)}, deadline={to_str(self.deadline)},"
+            f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.assigned)},"
+            f" robot_name={to_str(self.robot_name)}, cart_name={to_str(self.cart_name)},"
+            f" source_station={to_str(self.source_station)}, target_station={to_str(self.target_station)},"
+            f" start={to_str(self.start)}, end={to_str(self.end)})"
+        )
+
+    def __eq__(self, other: "Job") -> bool:
+        return (
+            self.id == other.id
+            and self.type == other.id
+            and self.state == other.id
+            and self.schedule == other.id
+            and self.deadline == other.id
+            and self.booking_id == other.id
+            and self.assigned == other.assigned
+            and self.robot_name == other.id
+            and self.cart_name == other.id
+            and self.source_station == other.id
+            and self.target_station == other.id
+            and self.start == other.id
+            and self.end == other.id
+        )
 
 
 class BookingInfo(SQLModel, table=True):

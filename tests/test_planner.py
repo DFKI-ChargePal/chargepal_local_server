@@ -20,6 +20,7 @@ import os
 import time
 from chargepal_local_server import debug_ldb
 from chargepal_local_server.create_ldb_orders import create_sample_booking
+from chargepal_local_server.create_pdb import reset_db
 from chargepal_local_server.planner import ChargerCommand, JobType, Planner
 from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
@@ -66,6 +67,7 @@ class Environment:
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
         debug_ldb.counts.set(config.counts)
         debug_ldb.delete_from("orders_in")
+        reset_db()
         # Set all locations to none for entities unused
         #  to prevent them from blocking stations erroneously.
         debug_ldb.update("robot_info SET robot_location = 'NONE'")
@@ -136,7 +138,7 @@ def wait_for_job(
         if time.time() - time_start >= timeout:
             raise TimeoutError("No job.")
     print(response)
-    if job_type and response.job.job_type != job_type.name:
+    if job_type and response.job.job_type != job_type:
         raise RuntimeError("Wrong job type.")
     return response.job
 
