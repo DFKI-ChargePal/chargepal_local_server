@@ -64,12 +64,6 @@ class Planner:
         self.update_cart_infos()
         self.booking_infos: Dict[int, Tuple[str, datetime, datetime, timedelta]] = {}
         self.last_fetched_change = datetime.min
-        # Store history of robot jobs.
-        # Note: This loads all existing jobs in the database.
-        self.jobs: Dict[int, Job] = {
-            job.id: job for job in self.session.exec(select(Job)).fetchall()
-        }
-        self.new_jobs: List[Job] = []
         # Store which cart is currently fulfilling which booking.
         self.current_bookings: Dict[str, int] = {}
         # Store which battery charging station is currently reserved for which cart.
@@ -100,7 +94,6 @@ class Planner:
                 ).first()
             ), f"{job.robot_name} already has a pending job."
         self.session.add(job)
-        self.new_jobs.append(job)
         return job
 
     def get_current_job(self, robot: str) -> Optional[Job]:
@@ -522,11 +515,6 @@ class Planner:
                 self.handle_updated_bookings()
                 self.schedule_jobs()
                 self.session.commit()
-                # Note: Access auto-generated primary key after commit.
-                for job in self.new_jobs:
-                    assert job.id, f"{job} has no id."
-                    self.jobs[job.id] = job
-                self.new_jobs.clear()
             time.sleep(update_interval)
 
 
