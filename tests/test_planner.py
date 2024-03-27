@@ -11,7 +11,6 @@ are not suited as real-time tests.
 from typing import Iterable, Optional, Type
 from types import TracebackType
 from concurrent import futures
-from dataclasses import dataclass
 from threading import Thread
 from chargepal_local_server.communication_pb2 import Response_Job
 from chargepal_local_server import communication_pb2_grpc
@@ -24,48 +23,16 @@ from chargepal_local_server.create_pdb import reset_db
 from chargepal_local_server.planner import ChargerCommand, JobType, Planner
 from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
+from pscedev.config import CONFIG_ALL_ONE, CONFIG_DEFAULT
 from pscedev.scenario import SCENARIO1
-from pscedev import BookingEvent, Event, Monitoring, Scenario
-
-
-@dataclass
-class Config:
-    counts: str
-    locations: str
-
-    @staticmethod
-    def get_counts_from_scenario(scenario: Scenario) -> str:
-        return (
-            f"ADS: {scenario.ADS_count}, BCS: {scenario.BCS_count},"
-            f" BWS: {scenario.BWS_count}, RBS: {scenario.RBS_count},"
-            f" robots: {scenario.robot_count}, carts: {scenario.cart_count}"
-        )
-
-
-CONFIG_ALL_ONE = Config(
-    "ADS: 1, BCS: 1, BWS: 1, RBS: 1, robots: 1, carts: 1",
-    {
-        "ChargePal1": "BWS_1",
-        "BAT_1": "BWS_1",
-    },
-)
-CONFIG_DEFAULT = Config(
-    "ADS: 2, BCS: 2, BWS: 3, RBS: 2, robots: 2, carts: 3",
-    {
-        "ChargePal1": "RBS_1",
-        "ChargePal2": "RBS_2",
-        "BAT_1": "BWS_1",
-        "BAT_2": "BWS_2",
-        "BAT_3": "BWS_3",
-    },
-)
+from pscedev import BookingEvent, Config, Event, Monitoring
 
 
 class Environment:
     def __init__(self, config: Config) -> None:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        debug_ldb.counts.set(config.counts)
+        debug_ldb.counts.set(config.counts_str)
         debug_ldb.delete_from("orders_in")
         reset_db()
         # Set all locations to none for entities unused
@@ -159,9 +126,8 @@ def test_recharge_self() -> None:
 
 
 def test_bring_and_recharge() -> None:
-    assert Config.get_counts_from_scenario(SCENARIO1) == CONFIG_ALL_ONE.counts
     monitoring = Monitoring(SCENARIO1)
-    with Environment(CONFIG_ALL_ONE) as environment:
+    with Environment(SCENARIO1.config) as environment:
         client = environment.robot_clients["ChargePal1"]
         # Book and let car appear.
         environment.handle_events(monitoring.get_next_events())
@@ -218,8 +184,7 @@ def test_failures() -> None:
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
-def fix_test_two_twice_in_parallel() -> None:
-    # TODO fix database entries for multiple robots and carts after calling create_ldb.py.
+def test_two_twice_in_parallel() -> None:
     with Environment(CONFIG_DEFAULT) as environment:
         for _ in range(2):
             # Create 2 bookings, let 2 robots bring 2 carts.
@@ -297,6 +262,6 @@ if __name__ == "__main__":
     test_recharge_self()
     test_bring_and_recharge()
     test_failures()
-    fix_test_two_twice_in_parallel()
+    test_two_twice_in_parallel()
     test_status_update()
     test_plug_in_handshake()
