@@ -60,7 +60,7 @@ class Job(SQLModel, table=True):
     schedule: datetime
     deadline: Optional[datetime]
     booking_id: Optional[int]
-    assigned: bool
+    currently_assigned: bool
     robot_name: Optional[str]
     cart_name: Optional[str]
     source_station: Optional[str]
@@ -72,7 +72,7 @@ class Job(SQLModel, table=True):
         return (
             f"Job(id={to_str(self.id)}, type={to_str(self.type)}, state={to_str(self.state)},"
             f" schedule={to_str(self.schedule)}, deadline={to_str(self.deadline)},"
-            f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.assigned)},"
+            f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.currently_assigned)},"
             f" robot_name={to_str(self.robot_name)}, cart_name={to_str(self.cart_name)},"
             f" source_station={to_str(self.source_station)}, target_station={to_str(self.target_station)},"
             f" start={to_str(self.start)}, end={to_str(self.end)})"
@@ -86,7 +86,7 @@ class Job(SQLModel, table=True):
             and self.schedule == other.id
             and self.deadline == other.id
             and self.booking_id == other.id
-            and self.assigned == other.assigned
+            and self.currently_assigned == other.currently_assigned
             and self.robot_name == other.id
             and self.cart_name == other.id
             and self.source_station == other.id

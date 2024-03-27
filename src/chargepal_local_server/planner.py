@@ -106,7 +106,7 @@ class Planner:
     def get_current_job(self, robot: str) -> Optional[Job]:
         """Return robot's currently assigned job."""
         jobs = self.session.exec(
-            select(Job).where(Job.robot_name == robot).where(Job.assigned)
+            select(Job).where(Job.robot_name == robot).where(Job.currently_assigned)
         ).fetchall()
         assert len(jobs) <= 1, f"{robot} has {len(jobs)} assigned."
         return jobs[0] if jobs else None
@@ -117,7 +117,7 @@ class Planner:
         check_job = self.get_current_job(robot)
         assert not check_job, f"{robot} already has job {check_job} assigned."
         job.state = JobState.PENDING
-        job.assigned = True
+        job.currently_assigned = True
         job.robot_name = robot
 
     def pop_nearest_cart(self, station: str, charge: float) -> Optional[str]:
@@ -179,7 +179,7 @@ class Planner:
             print(f"{robot} sends update '{job_status}' for {job}.")
             if job_status == "Success":
                 job.state = JobState.COMPLETE  # Transition J9
-                job.assigned = False
+                job.currently_assigned = False
                 assert (
                     job.robot_name and job.robot_name == robot and job.target_station
                 ), job
@@ -208,7 +208,7 @@ class Planner:
                 return True
             if job_status == "Failure":
                 job.state = JobState.FAILED
-                job.assigned = False
+                job.currently_assigned = False
                 print(f"Warning: {job} for {robot} failed!")
                 assert job.robot_name and job.robot_name == robot, (
                     robot,
@@ -320,7 +320,7 @@ class Planner:
                             - plugintime_calculated
                             - ROBOT_JOB_DURATION,
                             booking_id=booking_id,
-                            assigned=False,
+                            currently_assigned=False,
                             target_station=target_station,
                         )
                     )  # Transition J0
@@ -366,7 +366,7 @@ class Planner:
                     type=JobType.RETRIEVE_CHARGER,
                     state=JobState.OPEN,
                     schedule=datetime.now(),
-                    assigned=False,
+                    currently_assigned=False,
                     cart_name=charger,
                     source_station=self.booking_infos[self.current_bookings[charger]][
                         0
@@ -444,7 +444,7 @@ class Planner:
                         type=JobType.RECHARGE_SELF,
                         state=JobState.PENDING,
                         schedule=datetime.now(),
-                        assigned=True,
+                        currently_assigned=True,
                         robot_name=robot,
                         target_station=f"RBS_{robot[9:]}",
                     )
