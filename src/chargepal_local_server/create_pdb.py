@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from sqlmodel import Session, delete
 from chargepal_local_server.pdb_interfaces import (
-    BookingInfo,
+    Booking,
     CartInfo,
     Job,
     RobotInfo,
@@ -111,7 +111,7 @@ def add_default_BCSs(session: Session, count: int) -> None:
 
 def reset_db() -> None:
     with Session(engine) as session:
-        for info in (RobotInfo, CartInfo, StationInfo, Job, BookingInfo):
+        for info in (RobotInfo, CartInfo, StationInfo, Job, Booking):
             session.exec(delete(info))
         add_default_robots(session, 1)
         add_default_carts(session, 1)

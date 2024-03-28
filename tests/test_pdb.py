@@ -16,20 +16,20 @@ def test_pdb_update() -> None:
     # Check fetching from empty ldb.
     create_pdb.reset_db()
     update_pdb.copy_from_ldb()
-    assert not update_pdb.fetch_updated_booking_infos()
+    assert not update_pdb.fetch_updated_bookings()
     # Check fetching one new booking.
     create_ldb_orders.create_sample_booking()
-    assert not update_pdb.fetch_updated_booking_infos()
+    assert not update_pdb.fetch_updated_bookings()
     update_pdb.copy_from_ldb()
-    assert len(update_pdb.fetch_updated_booking_infos()) == 1
-    assert not update_pdb.fetch_updated_booking_infos()
+    assert len(update_pdb.fetch_updated_bookings()) == 1
+    assert not update_pdb.fetch_updated_bookings()
     # Check fetching one update and one new booking.
     debug_ldb.update(
         "orders_in SET charging_session_status = 'finished' WHERE charging_session_id = 1"
     )
     create_ldb_orders.create_sample_booking()
     update_pdb.copy_from_ldb()
-    assert len(update_pdb.fetch_updated_booking_infos()) == 2
+    assert len(update_pdb.fetch_updated_bookings()) == 2
 
 
 if __name__ == "__main__":

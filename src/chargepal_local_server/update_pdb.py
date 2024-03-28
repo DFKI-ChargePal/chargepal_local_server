@@ -4,14 +4,14 @@ reading from local sqlite3 database (ldb)
 """
 
 #!/usr/bin/env python3
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import os
 import re
 import sqlite3
 from sqlmodel import Session, insert, select, update
 from chargepal_local_server.pdb_interfaces import (
-    BookingInfo,
+    Booking,
     CartInfo,
     RobotInfo,
     engine,
@@ -19,9 +19,7 @@ from chargepal_local_server.pdb_interfaces import (
 
 
 ldb_filepath = os.path.join(os.path.dirname(__file__), "db/ldb.db")
-ldb_connection = sqlite3.connect(ldb_filepath)
-ldb_cursor = ldb_connection.cursor()
-last_booking_infos: Dict[int, BookingInfo] = {}
+last_bookings: Dict[int, Booking] = {}
 
 
 def is_sql_none(string: Optional[str]) -> bool:
@@ -56,6 +54,12 @@ def parse_timedelta(string: Optional[str]) -> Optional[timedelta]:
 
 
 def copy_from_ldb() -> None:
+    """Copy robot_info, cart_info, and orders_in from ldb to pdb."""
+
+    # Note: SQLite objects created in a thread can only be used in that same thread.
+    ldb_connection = sqlite3.connect(ldb_filepath)
+    ldb_cursor = ldb_connection.cursor()
+
     with Session(engine) as session:
         ldb_cursor.execute(
             """SELECT
@@ -150,10 +154,10 @@ def copy_from_ldb() -> None:
             )
             actual_BEV_pickup_time = parse_datetime(actual_BEV_pickup_time)
             if session.exec(
-                select(BookingInfo).where(BookingInfo.booking_id == charging_session_id)
+                select(Booking).where(Booking.id == charging_session_id)
             ).first():
                 session.exec(
-                    update(BookingInfo)
+                    update(Booking)
                     .values(
                         charging_session_status=charging_session_status,
                         last_change=last_change,
@@ -166,12 +170,12 @@ def copy_from_ldb() -> None:
                         actual_plugintime_calculated=actual_plugintime_calculated,
                         actual_BEV_pickup_time=actual_BEV_pickup_time,
                     )
-                    .where(BookingInfo.booking_id == charging_session_id)
+                    .where(Booking.id == charging_session_id)
                 )
             else:
                 session.exec(
-                    insert(BookingInfo).values(
-                        booking_id=booking_id,
+                    insert(Booking).values(
+                        id=booking_id,
                         charging_session_status=charging_session_status,
                         last_change=last_change,
                         planned_BEV_drop_time=planned_BEV_drop_time,
@@ -182,26 +186,26 @@ def copy_from_ldb() -> None:
                         actual_BEV_location=actual_BEV_location,
                         actual_plugintime_calculated=actual_plugintime_calculated,
                         actual_BEV_pickup_time=actual_BEV_pickup_time,
-                        booking_time=parse_datetime(booking_date_time_dev),
+                        creation_time=parse_datetime(booking_date_time_dev),
                     )
                 )
 
         session.commit()
 
 
-def fetch_updated_booking_infos() -> Dict[int, BookingInfo]:
-    updated_booking_infos: Dict[int, BookingInfo] = {}
+def fetch_updated_bookings() -> Dict[int, Booking]:
+    updated_bookings: Dict[int, Booking] = {}
     with Session(engine) as session:
-        booking_infos = session.exec(select(BookingInfo)).fetchall()
-        for booking_info in booking_infos:
-            booking_id = booking_info.booking_id
+        bookings = session.exec(select(Booking)).fetchall()
+        for booking in bookings:
+            booking_id = booking.id
             if (
-                booking_info.booking_id not in last_booking_infos.keys()
-                or booking_info != last_booking_infos[booking_id]
+                booking.id not in last_bookings.keys()
+                or booking != last_bookings[booking_id]
             ):
-                last_booking_infos[booking_id] = booking_info
-                updated_booking_infos[booking_id] = booking_info
-    return updated_booking_infos
+                last_bookings[booking_id] = booking
+                updated_bookings[booking_id] = booking
+    return updated_bookings
 
 
 if __name__ == "__main__":

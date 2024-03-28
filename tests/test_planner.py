@@ -20,7 +20,12 @@ import time
 from chargepal_local_server import debug_ldb
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import reset_db
-from chargepal_local_server.planner import ChargerCommand, JobType, Planner
+from chargepal_local_server.planner import (
+    BookingState,
+    ChargerCommand,
+    JobType,
+    Planner,
+)
 from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
 from pscedev.config import CONFIG_ALL_ONE, CONFIG_DEFAULT
@@ -78,6 +83,7 @@ class Environment:
         while True:
             for client in self.robot_clients.values():
                 response, _ = client.fetch_job()
+                assert response, "No response received for grpc request."
                 if response.job.job_type:
                     print(response)
                     return response.job
@@ -145,7 +151,9 @@ def test_bring_and_recharge() -> None:
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_1 finish charging.
-        debug_ldb.update("orders_in SET charging_session_status = 'finished'")
+        debug_ldb.update(
+            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
+        )
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_1 to BCS_1.
         job = wait_for_job(client, JobType.RECHARGE_CHARGER)
@@ -173,7 +181,9 @@ def test_failures() -> None:
         wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         wait_for_job(client, JobType.RECHARGE_SELF)
-        debug_ldb.update("orders_in SET charging_session_status = 'finished'")
+        debug_ldb.update(
+            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
+        )
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
@@ -230,10 +240,14 @@ def test_two_twice_in_parallel() -> None:
 def test_status_update() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
-        create_sample_booking(drop_location="ADS_1", charging_session_status="booked")
+        create_sample_booking(
+            drop_location="ADS_1", charging_session_status=BookingState.BOOKED
+        )
         wait_for_job(environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
-        debug_ldb.update("orders_in SET charging_session_status = 'checked_in'")
+        debug_ldb.update(
+            f"orders_in SET charging_session_status = '{BookingState.CHECKED_IN}'"
+        )
         wait_for_job(environment.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
 
 
@@ -241,21 +255,23 @@ def test_plug_in_handshake() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        wait_for_job(client, JobType.BRING_CHARGER)
         get_status = lambda: debug_ldb.select(
             "charging_session_status FROM orders_in",
         )[-1][0]
-        assert get_status() == "checked_in", get_status()
-        assert not environment.planner.robot_ready2plug("ChargePal1")
-        assert get_status() == "robot_ready2plug", get_status()
-        assert not environment.planner.robot_ready2plug("ChargePal1")
+        assert get_status() == BookingState.CHECKED_IN, get_status()
+        wait_for_job(client, JobType.BRING_CHARGER)
+        assert get_status() == BookingState.SCHEDULED, get_status()
+        assert not environment.planner.handshake_plug_in("ChargePal1")
+        assert get_status() == BookingState.ROBOT_READY_TO_PLUG, get_status()
+        assert not environment.planner.handshake_plug_in("ChargePal1")
         debug_ldb.update(
-            "orders_in SET charging_session_status == 'BEV_pending'"
-            " WHERE charging_session_status == 'robot_ready2plug'"
+            f"orders_in SET charging_session_status = '{BookingState.BEV_PENDING}'"
+            f" WHERE charging_session_status = '{BookingState.ROBOT_READY_TO_PLUG}'"
         )
-        assert not environment.planner.robot_ready2plug("ChargePal1")
+        assert not environment.planner.handshake_plug_in("ChargePal1")
         environment.planner.handle_updated_bookings()
-        assert environment.planner.robot_ready2plug("ChargePal1")
+        time.sleep(1.0)
+        assert environment.planner.handshake_plug_in("ChargePal1")
 
 
 if __name__ == "__main__":

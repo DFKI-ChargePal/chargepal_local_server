@@ -104,7 +104,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
         self, request: Request, context: Any
     ) -> Response_Ready2PlugInADS:
         with self.request_lock:
-            ready_to_plugin = self.planner.robot_ready2plug(request.robot_name)
+            ready_to_plugin = self.planner.handshake_plug_in(request.robot_name)
             response = Response_Ready2PlugInADS(ready_to_plugin)
         return response
 

@@ -8,9 +8,7 @@ from sqlmodel import Field, SQLModel, create_engine
 
 def to_str(obj: object) -> str:
     return (
-        str(obj)
-        if obj is None or isinstance(obj, (bool, float, int, str))
-        else f"'{obj}'"
+        str(obj) if obj is None or isinstance(obj, (bool, float, int)) else f"'{obj}'"
     )
 
 
@@ -68,16 +66,6 @@ class Job(SQLModel, table=True):
     start: Optional[datetime]
     end: Optional[datetime]
 
-    def __str__(self) -> str:
-        return (
-            f"Job(id={to_str(self.id)}, type={to_str(self.type)}, state={to_str(self.state)},"
-            f" schedule={to_str(self.schedule)}, deadline={to_str(self.deadline)},"
-            f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.currently_assigned)},"
-            f" robot_name={to_str(self.robot_name)}, cart_name={to_str(self.cart_name)},"
-            f" source_station={to_str(self.source_station)}, target_station={to_str(self.target_station)},"
-            f" start={to_str(self.start)}, end={to_str(self.end)})"
-        )
-
     def __eq__(self, other: "Job") -> bool:
         return (
             self.id == other.id
@@ -95,9 +83,19 @@ class Job(SQLModel, table=True):
             and self.end == other.id
         )
 
+    def __str__(self) -> str:
+        return (
+            f"Job(id={to_str(self.id)}, type={to_str(self.type)}, state={to_str(self.state)},"
+            f" schedule={to_str(self.schedule)}, deadline={to_str(self.deadline)},"
+            f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.currently_assigned)},"
+            f" robot_name={to_str(self.robot_name)}, cart_name={to_str(self.cart_name)},"
+            f" source_station={to_str(self.source_station)}, target_station={to_str(self.target_station)},"
+            f" start={to_str(self.start)}, end={to_str(self.end)})"
+        )
 
-class BookingInfo(SQLModel, table=True):
-    booking_id: int = Field(primary_key=True)
+
+class Booking(SQLModel, table=True):
+    id: int = Field(primary_key=True)
     charging_session_status: str
     last_change: datetime
     planned_BEV_drop_time: datetime
@@ -108,12 +106,12 @@ class BookingInfo(SQLModel, table=True):
     actual_BEV_location: str
     actual_plugintime_calculated: timedelta
     actual_BEV_pickup_time: Optional[datetime]
-    booking_completion: Optional[datetime]
-    booking_time: datetime
+    completion_time: Optional[datetime]
+    creation_time: datetime
 
-    def __eq__(self, other: "BookingInfo") -> bool:
+    def __eq__(self, other: "Booking") -> bool:
         return (
-            other.booking_id == self.booking_id
+            other.id == self.id
             and other.charging_session_status == self.charging_session_status
             and other.last_change == self.last_change
             and other.planned_BEV_drop_time == self.planned_BEV_drop_time
@@ -125,7 +123,23 @@ class BookingInfo(SQLModel, table=True):
             and other.actual_BEV_location == self.actual_BEV_location
             and other.actual_plugintime_calculated == self.actual_plugintime_calculated
             and other.actual_BEV_pickup_time == self.actual_BEV_pickup_time
-            and other.booking_time == self.booking_time
+            and other.completion_time == self.completion_time
+            and other.creation_time == self.creation_time
+        )
+
+    def __str__(self) -> str:
+        return (
+            f"Booking(id={to_str(self.id)}, charging_session_status={to_str(self.charging_session_status)},"
+            f" last_change={to_str(self.last_change)},"
+            f" planned_BEV_drop_time={to_str(self.planned_BEV_drop_time)},"
+            f" planned_BEV_location={to_str(self.planned_BEV_location)},"
+            f" planned_plugintime_calculated={to_str(self.planned_plugintime_calculated)},"
+            f" planned_BEV_pickup_time={to_str(self.planned_BEV_pickup_time)},"
+            f" actual_BEV_drop_time={to_str(self.actual_BEV_drop_time)},"
+            f" actual_BEV_location={to_str(self.actual_BEV_location)},"
+            f" actual_plugintime_calculated={to_str(self.actual_plugintime_calculated)},"
+            f" actual_BEV_pickup_time={to_str(self.actual_BEV_pickup_time)},"
+            f" completion_time={to_str(self.completion_time)}, creation_time={to_str(self.creation_time)})"
         )
 
 
