@@ -74,6 +74,14 @@ class Environment:
         os.chdir(self.cwd)
         self.planner.active = False
 
+    def wait_for_updated_bookings(self, timeout: float = 1.0) -> None:
+        time_start = time.time()
+        while time.time() - time_start < timeout:
+            time.sleep(0.0)
+            if self.planner.bookings_updated:
+                return
+        raise TimeoutError("Planner did not receive updated bookings.")
+
     def wait_for_next_job(self, timeout: float = 1.0) -> Response_Job:
         """
         With timeout, wait for and return the next job received by any client.
@@ -81,15 +89,14 @@ class Environment:
         Note: This is prone to race conditions on purpose.
         """
         time_start = time.time()
-        while True:
+        while time.time() - time_start < timeout:
             for client in self.robot_clients.values():
                 response, _ = client.fetch_job()
                 assert response, "No response received for grpc request."
                 if response.job.job_type:
                     logging.info(response)
                     return response.job
-            if time.time() - time_start >= timeout:
-                raise TimeoutError("No job.")
+        raise TimeoutError("No job.")
 
     def handle_events(self, events: Iterable[Event]) -> None:
         for event in events:
@@ -107,6 +114,7 @@ def wait_for_job(
     time_start = time.time()
     while True:
         response, _ = client.fetch_job()
+        assert response, "No response received for grpc request."
         if response.job.job_type:
             break
         if time.time() - time_start >= timeout:
@@ -174,9 +182,11 @@ def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
+        environment.wait_for_updated_bookings()
         job = wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Failure")
         assert job.cart in environment.planner.available_carts, job.cart
+        environment.wait_for_updated_bookings()
         job = wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
         wait_for_job(client, JobType.RECHARGE_SELF)
@@ -201,6 +211,7 @@ def test_two_twice_in_parallel() -> None:
             # Create 2 bookings, let 2 robots bring 2 carts.
             for number in (1, 2):
                 create_sample_booking(drop_location=f"ADS_{number}")
+            environment.wait_for_updated_bookings()
             cart1 = environment.wait_for_next_job().cart
             cart2 = environment.wait_for_next_job().cart
             for client in environment.robot_clients.values():

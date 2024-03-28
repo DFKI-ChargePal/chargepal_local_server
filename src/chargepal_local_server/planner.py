@@ -93,6 +93,8 @@ class Planner:
         self.plugin_states: Dict[int, PlugInState] = {}
         # Delete existing bookings from the database for development phase.
         self.access.delete_bookings()
+        # Store whether planner received updated bookings.
+        self.bookings_updated = False
 
     def get_booking(self, booking_id: int) -> Booking:
         """Return booking with booking_id."""
@@ -272,8 +274,11 @@ class Planner:
             return f"ADS_{location[-1]}"
         raise ValueError(f"No adapter station mapped to '{location}'.")
 
-    def handle_updated_bookings(self) -> None:
-        """Fetch updated bookings from the database and create new jobs from them."""
+    def handle_updated_bookings(self) -> bool:
+        """
+        Fetch updated bookings from the database and create new jobs for new bookings.
+        Return whether there were updated bookings.
+        """
         updated_bookings = fetch_updated_bookings()  # Transition B0
         for booking_id, booking in updated_bookings.items():
             target_station = self.get_ads_for(booking.actual_BEV_location)
@@ -314,6 +319,7 @@ class Planner:
                         self.handle_charger_update(
                             cart, ChargerCommand.BOOKING_FULFILLED
                         )
+        return bool(updated_bookings)
 
     def confirm_charger_ready(self, robot: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
@@ -503,11 +509,12 @@ class Planner:
             f"Parking area environment info [ {get_list_str_of_dict(self.env_infos)} ] received."
         )
         while self.active:
+            self.bookings_updated = False
             copy_from_ldb()
             with self.database_lock:
                 self.update_robot_infos()
                 self.update_cart_infos()
-                self.handle_updated_bookings()
+                self.bookings_updated = self.handle_updated_bookings()
                 self.schedule_jobs()
                 self.session.commit()
             time.sleep(update_interval)
