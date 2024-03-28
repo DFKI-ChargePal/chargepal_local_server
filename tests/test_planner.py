@@ -15,6 +15,7 @@ from threading import Thread
 from chargepal_local_server.communication_pb2 import Response_Job
 from chargepal_local_server import communication_pb2_grpc
 import grpc
+import logging
 import os
 import time
 from chargepal_local_server import debug_ldb
@@ -85,7 +86,7 @@ class Environment:
                 response, _ = client.fetch_job()
                 assert response, "No response received for grpc request."
                 if response.job.job_type:
-                    print(response)
+                    logging.info(response)
                     return response.job
             if time.time() - time_start >= timeout:
                 raise TimeoutError("No job.")
@@ -110,7 +111,7 @@ def wait_for_job(
             break
         if time.time() - time_start >= timeout:
             raise TimeoutError("No job.")
-    print(response)
+    logging.info(response)
     if job_type and response.job.job_type != job_type:
         raise RuntimeError("Wrong job type.")
     return response.job
@@ -275,6 +276,7 @@ def test_plug_in_handshake() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
     test_recharge_self()
     test_bring_and_recharge()
     test_failures()

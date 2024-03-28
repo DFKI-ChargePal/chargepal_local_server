@@ -10,6 +10,7 @@ from chargepal_local_server import access_ldb
 from chargepal_local_server.access_ldb import DatabaseAccess
 from chargepal_local_server.pdb_interfaces import Booking, Job, engine
 from chargepal_local_server.update_pdb import copy_from_ldb, fetch_updated_bookings
+import logging
 import time
 
 
@@ -129,6 +130,7 @@ class Planner:
         job.state = JobState.PENDING
         job.currently_assigned = True
         job.robot_name = robot
+        logging.debug(f"{job} assigned to {robot}.")
 
     def pop_nearest_cart(self, station: str, charge: float) -> Optional[str]:
         """Find nearest available cart to station which can provide charge."""
@@ -183,13 +185,16 @@ class Planner:
         with self.database_lock:
             job = self.get_current_job(robot)
             if not job:
-                print(f"Warning: {robot} without current job sent a job update.")
+                logging.warning(
+                    f"Warning: {robot} without current job sent a job update."
+                )
                 return False
 
-            print(f"{robot} sends update '{job_status}' for {job}.")
+            logging.info(f"{robot} sends update '{job_status}' for {job}.")
             if job_status == "Success":
                 job.state = JobState.COMPLETE  # Transition J9
                 job.currently_assigned = False
+                logging.debug(f"{job} for {robot} complete.")
                 assert (
                     job.robot_name and job.robot_name == robot and job.target_station
                 ), job
@@ -219,7 +224,7 @@ class Planner:
             if job_status == "Failure":
                 job.state = JobState.FAILED
                 job.currently_assigned = False
-                print(f"Warning: {job} for {robot} failed!")
+                logging.warning(f"Warning: {job} for {robot} failed!")
                 assert job.robot_name and job.robot_name == robot, (
                     job,
                     robot,
@@ -247,6 +252,7 @@ class Planner:
                         self.access.update_session_status(
                             booking_id, BookingState.CHECKED_IN
                         )
+                        logging.debug(f"{booking} reset to checked-in.")
                     if job.cart_name not in self.available_carts:
                         self.available_carts.append(job.cart_name)
                 self.session.commit()
@@ -294,11 +300,12 @@ class Planner:
                         target_station=target_station,
                     )
                 )  # Transition J0
-                print(f"{job} created.")
+                logging.info(f"{job} created.")
                 booking.charging_session_status = BookingState.SCHEDULED
                 self.access.update_session_status(
                     booking_id, BookingState.SCHEDULED
                 )  # Transition B1
+                logging.debug(f"{booking} scheduled.")
             elif booking.charging_session_status == BookingState.BEV_PENDING:
                 self.plugin_states[booking_id] = PlugInState.BEV_PENDING
             elif booking.charging_session_status == BookingState.FINISHED:
@@ -346,7 +353,7 @@ class Planner:
                     ).actual_BEV_location,
                 )
             )  # Transition J0
-            print(f"{job} created.")
+            logging.info(f"{job} created.")
             self.current_bookings.pop(charger)  # Transition B2
 
     def schedule_jobs(self) -> None:
@@ -405,7 +412,7 @@ class Planner:
                         and job.target_station
                     ), job
                 else:
-                    print("Warning: No station available.")
+                    logging.warning("Warning: No station available.")
         # Let all remaining available robots not at RBS recharge themselves.
         for robot in list(self.available_robots):
             check_job = self.get_current_job(robot)
@@ -422,6 +429,7 @@ class Planner:
                         target_station=f"RBS_{robot[9:]}",
                     )
                 )  # Transition J0 + J1
+                logging.debug(f"{job} created.")
                 self.available_robots.remove(robot)
 
     def fetch_job(self, robot: str) -> Dict[str, str]:
@@ -437,7 +445,9 @@ class Planner:
                     "source_station": job.source_station,
                     "target_station": job.target_station,
                 }
-                print(f"Job {job.id} [ {get_list_str_of_dict(job_details)} ] sent.")
+                logging.info(
+                    f"Job {job.id} [ {get_list_str_of_dict(job_details)} ] sent."
+                )
                 self.session.commit()
                 return job_details
 
@@ -474,12 +484,14 @@ class Planner:
 
     def handshake_plug_in(self, robot: str) -> bool:
         booking_id = self.get_current_job(robot).booking_id
+        booking = self.get_booking(booking_id)
         plugin_state = self.plugin_states[booking_id]
         if plugin_state == PlugInState.BRING_CHARGER:
             self.plugin_states[booking_id] = PlugInState.ROBOT_READY2PLUG
             self.access.update_session_status(
                 booking_id, BookingState.ROBOT_READY_TO_PLUG
             )
+            logging.debug(f"{booking}'s robot is ready to plug.")
         elif plugin_state == PlugInState.BEV_PENDING:
             self.plugin_states[booking_id] = PlugInState.PLUG_IN
             return True
@@ -487,7 +499,7 @@ class Planner:
 
     def run(self, update_interval: float = 1.0) -> None:
         self.env_infos.update(self.access.fetch_env_infos())
-        print(
+        logging.info(
             f"Parking area environment info [ {get_list_str_of_dict(self.env_infos)} ] received."
         )
         while self.active:
