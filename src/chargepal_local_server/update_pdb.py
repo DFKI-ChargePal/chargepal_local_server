@@ -4,7 +4,7 @@ reading from local sqlite3 database (ldb)
 """
 
 #!/usr/bin/env python3
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 from datetime import datetime, timedelta
 import os
 import re
@@ -19,6 +19,7 @@ from chargepal_local_server.pdb_interfaces import (
 
 
 ldb_filepath = os.path.join(os.path.dirname(__file__), "db/ldb.db")
+# Store which bookings were last fetched from pdb.
 last_bookings: Dict[int, Booking] = {}
 
 
@@ -53,11 +54,11 @@ def parse_timedelta(string: Optional[str]) -> Optional[timedelta]:
     )
 
 
-def copy_from_ldb() -> None:
+def copy_from_ldb(filepath: str = ldb_filepath) -> None:
     """Copy robot_info, cart_info, and orders_in from ldb to pdb."""
 
     # Note: SQLite objects created in a thread can only be used in that same thread.
-    ldb_connection = sqlite3.connect(ldb_filepath)
+    ldb_connection = sqlite3.connect(filepath)
     ldb_cursor = ldb_connection.cursor()
 
     with Session(engine) as session:
@@ -194,6 +195,7 @@ def copy_from_ldb() -> None:
 
 
 def fetch_updated_bookings() -> Dict[int, Booking]:
+    """Return bookings updated in pdb since last time they were fetched."""
     updated_bookings: Dict[int, Booking] = {}
     with Session(engine) as session:
         bookings = session.exec(select(Booking)).fetchall()

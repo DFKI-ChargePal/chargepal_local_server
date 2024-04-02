@@ -11,6 +11,7 @@ from chargepal_local_server.pdb_interfaces import (
 
 
 def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> None:
+    """Add count robots to session. If with_RBSs is true, also add an RBS per robot."""
     for number in range(1, count + 1):
         robot_name = f"ChargePal{number}"
         robot_location = f"RBS_{number}"
@@ -43,6 +44,10 @@ def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> 
 def add_default_carts(
     session: Session, count: int, with_BWSs: bool = True, with_BCSs: bool = False
 ) -> None:
+    """
+    Add count carts to session. If with_BWSs is true, also add a BWS per cart.
+    If with_BCSs is true, also add a BCS per cart.
+    """
     for number in range(1, count + 1):
         cart_name = f"BAT_{number}"
         cart_location = f"BWS_{number}"
@@ -86,6 +91,7 @@ def add_default_carts(
 
 
 def add_default_ADSs(session: Session, count: int) -> None:
+    """Add count ADSs to session."""
     for number in range(1, count + 1):
         session.add(
             StationInfo(
@@ -98,6 +104,7 @@ def add_default_ADSs(session: Session, count: int) -> None:
 
 
 def add_default_BCSs(session: Session, count: int) -> None:
+    """Add count BCSs to session."""
     for number in range(1, count + 1):
         session.add(
             StationInfo(
@@ -110,13 +117,13 @@ def add_default_BCSs(session: Session, count: int) -> None:
 
 
 def reset_db() -> None:
+    """Reset pdb by clearing all tables, then"""
     with Session(engine) as session:
         for info in (RobotInfo, CartInfo, StationInfo, Job, Booking):
             session.exec(delete(info))
         add_default_robots(session, 1)
-        add_default_carts(session, 1)
+        add_default_carts(session, 1, with_BCSs=True)
         add_default_ADSs(session, 1)
-        add_default_BCSs(session, 1)
         session.commit()
 
 

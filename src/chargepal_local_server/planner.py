@@ -38,6 +38,9 @@ class BookingState:
     CANCELED = "canceled"
     NO_SHOW = "no_show"
 
+    def equals(state1: str, state2: str) -> bool:
+        return state1.lower() == state2.lower()
+
 
 class JobType:
     BRING_CHARGER = "BRING_CHARGER"
@@ -247,8 +250,8 @@ class Planner:
                     if job.cart_name in self.current_bookings.keys():
                         booking_id = self.current_bookings.pop(job.cart_name)
                         booking = self.get_booking(booking_id)
-                        assert (
-                            booking.charging_session_status != BookingState.CHECKED_IN
+                        assert not BookingState.equals(
+                            booking.charging_session_status, BookingState.CHECKED_IN
                         ), booking
                         booking.charging_session_status = BookingState.CHECKED_IN
                         self.access.update_session_status(
@@ -285,7 +288,9 @@ class Planner:
             if not target_station.startswith("ADS_"):
                 target_station = f"ADS_{int(target_station)}"
             booking = self.get_booking(booking_id)
-            if booking.charging_session_status == BookingState.CHECKED_IN:
+            if BookingState.equals(
+                booking.charging_session_status, BookingState.CHECKED_IN
+            ):
                 # Create new job for the updated booking.
                 actual_BEV_pickup_time = (
                     booking.actual_BEV_pickup_time
@@ -311,9 +316,13 @@ class Planner:
                     booking_id, BookingState.SCHEDULED
                 )  # Transition B1
                 logging.debug(f"{booking} scheduled.")
-            elif booking.charging_session_status == BookingState.BEV_PENDING:
+            elif BookingState.equals(
+                booking.charging_session_status, BookingState.BEV_PENDING
+            ):
                 self.plugin_states[booking_id] = PlugInState.BEV_PENDING
-            elif booking.charging_session_status == BookingState.FINISHED:
+            elif BookingState.equals(
+                booking.charging_session_status, BookingState.FINISHED
+            ):
                 for cart, check in list(self.current_bookings.items()):
                     if check == booking.id:
                         self.handle_charger_update(
@@ -523,6 +532,7 @@ class Planner:
 if __name__ == "__main__":
     planner = Planner()
     try:
+        logging.basicConfig(level=logging.DEBUG)
         planner.run()
     except AssertionError:
         planner.session.commit()
