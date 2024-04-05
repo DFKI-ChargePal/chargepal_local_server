@@ -4,12 +4,13 @@
 Author: Gurunatraj Parthasarathy
 Email: gurunatraj.parthasarathy@dfki.de
 """
+import os
 import sqlite3
 
 
-def main():
+def main(robots_count: int = 1, carts_count: int = 1):
 
-    conn = sqlite3.connect("db/ldb.db")
+    conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), "db/ldb.db"))
     cursor = conn.cursor()
     cursor.execute(
         """
@@ -48,32 +49,29 @@ def main():
 
     cursor.execute("DELETE FROM orders_in")
 
-    # Insert a row of data
-    robot_data_1 = ("ChargePal1", "RBS_1", "none", "none", "none", "none", 0.0, 0)
-
     cursor.execute("DELETE FROM robot_info")
-    cursor.execute(
-        "INSERT INTO robot_info (robot_name,robot_location, current_job, ongoing_action, previous_action, cart_on_robot,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?)",
-        robot_data_1,
-    )
-
-    cart_data_1 = ("BAT_1", "BWS_1", "none", "none", 0.0, 0)
+    for number in range(1, robots_count + 1):
+        robot_data = (f"ChargePal{number}", f"RBS_{number}", "none", "none", "none", "none", 0.0, 0)
+        cursor.execute(
+            "INSERT INTO robot_info (robot_name,robot_location, current_job, ongoing_action, previous_action, cart_on_robot,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?)",
+            robot_data,
+        )
 
     cursor.execute("DELETE FROM cart_info")
-    cursor.execute(
-        "INSERT INTO cart_info (cart_name,cart_location, robot_on_cart, plugged, cart_charge, error_count) VALUES (?,?,?,?,?,?)",
-        cart_data_1,
-    )
+    for number in range(1, carts_count + 1):
+        cart_data = (f"BAT_{number}", f"BWS_{number}", "none", "none", 0.0, 0)
+        cursor.execute(
+            "INSERT INTO cart_info (cart_name,cart_location, robot_on_cart, plugged, cart_charge, error_count) VALUES (?,?,?,?,?,?)",
+            cart_data,
+        )
 
-    robots_count = ("robots_count", 1)
-    carts_count = ("carts_count", 1)
     RBS_count = ("RBS_count", 1)
     ADS_count = ("ADS_count", 1)
     BCS_count = ("BCS_count", 0)
     BWS_count = ("BWS_count", 1)
     cursor.execute("DELETE FROM env_info")
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", robots_count)
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", carts_count)
+    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ("robots_count", robots_count))
+    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ("carts_count", carts_count))
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", RBS_count)
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ADS_count)
     cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", BCS_count)

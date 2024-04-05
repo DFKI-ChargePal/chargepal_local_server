@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from sqlmodel import Session, delete
+from pscedev import Config
 from chargepal_local_server.pdb_interfaces import (
     Booking,
     CartInfo,
@@ -10,26 +11,48 @@ from chargepal_local_server.pdb_interfaces import (
 )
 
 
+def create_default_robot(name: str, location: str) -> RobotInfo:
+    return RobotInfo(
+        robot_name=name,
+        robot_location=location,
+        current_job_id=None,
+        current_job=None,
+        ongoing_action=None,
+        previous_action=None,
+        cart_on_robot=None,
+        pending_job_id=None,
+        robot_charge=100.0,
+        available=True,
+        error_count=0,
+    )
+
+
+def create_default_cart(name: str, location: str) -> CartInfo:
+    return CartInfo(
+        cart_name=name,
+        cart_location=location,
+        booking_id=None,
+        plugged=None,
+        action_state=None,
+        mode_response=None,
+        state_of_charge=None,
+        status_flag=None,
+        charger_ok=False,
+        charger_state=None,
+        charger_error=False,
+        balancing_request=False,
+        cart_charge=100.0,
+        available=True,
+        error_count=0,
+    )
+
+
 def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> None:
     """Add count robots to session. If with_RBSs is true, also add an RBS per robot."""
     for number in range(1, count + 1):
         robot_name = f"ChargePal{number}"
         robot_location = f"RBS_{number}"
-        session.add(
-            RobotInfo(
-                robot_name=robot_name,
-                robot_location=robot_location,
-                current_job_id=None,
-                current_job=None,
-                ongoing_action=None,
-                previous_action=None,
-                cart_on_robot=None,
-                pending_job_id=None,
-                robot_charge=100.0,
-                available=True,
-                error_count=0,
-            )
-        )
+        session.add(create_default_robot(robot_name, robot_location))
         if with_RBSs:
             session.add(
                 StationInfo(
@@ -51,25 +74,7 @@ def add_default_carts(
     for number in range(1, count + 1):
         cart_name = f"BAT_{number}"
         cart_location = f"BWS_{number}"
-        session.add(
-            CartInfo(
-                cart_name=cart_name,
-                cart_location=cart_location,
-                booking_id=None,
-                plugged=None,
-                action_state=None,
-                mode_response=None,
-                state_of_charge=None,
-                status_flag=None,
-                charger_ok=False,
-                charger_state=None,
-                charger_error=False,
-                balancing_request=False,
-                cart_charge=100.0,
-                available=True,
-                error_count=0,
-            )
-        )
+        session.add(create_default_cart(cart_name, cart_location))
         if with_BWSs:
             session.add(
                 StationInfo(
@@ -117,13 +122,43 @@ def add_default_BCSs(session: Session, count: int) -> None:
 
 
 def reset_db() -> None:
-    """Reset pdb by clearing all tables, then"""
+    """Reset pdb by clearing all tables, then create one robot, cart, and station each."""
     with Session(engine) as session:
-        for info in (RobotInfo, CartInfo, StationInfo, Job, Booking):
-            session.exec(delete(info))
+        for table in (RobotInfo, CartInfo, StationInfo, Job, Booking):
+            session.exec(delete(table))
         add_default_robots(session, 1)
         add_default_carts(session, 1, with_BCSs=True)
         add_default_ADSs(session, 1)
+        session.commit()
+
+
+def initialize_db(config: Config) -> None:
+    """Initialize pdb with config."""
+    with Session(engine) as session:
+        for table in (RobotInfo, CartInfo, StationInfo, Job, Booking):
+            session.exec(delete(table))
+        for station_name in config.ADS_names + config.BCS_names:
+            session.add(
+                StationInfo(
+                    station_name=station_name,
+                    station_pose="",
+                    reservation=None,
+                    available=True,
+                )
+            )
+        for station_name in config.BWS_names + config.RBS_names:
+            session.add(
+                StationInfo(
+                    station_name=station_name,
+                    station_pose="",
+                    reservation=None,
+                    available=False,
+                )
+            )
+        for robot_name, robot_location in config.robot_locations.items():
+            session.add(create_default_robot(robot_name, robot_location))
+        for cart_name, cart_location in config.cart_locations.items():
+            session.add(create_default_cart(cart_name, cart_location))
         session.commit()
 
 
