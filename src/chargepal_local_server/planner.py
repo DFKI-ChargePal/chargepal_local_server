@@ -8,7 +8,14 @@ from sqlmodel import Session, select
 from threading import Lock
 from chargepal_local_server import access_ldb
 from chargepal_local_server.access_ldb import DatabaseAccess
-from chargepal_local_server.pdb_interfaces import Booking, Job, engine
+from chargepal_local_server.pdb_interfaces import (
+    Booking,
+    CartInfo,
+    Job,
+    RobotInfo,
+    StationInfo,
+    engine,
+)
 from chargepal_local_server.update_pdb import copy_from_ldb, fetch_updated_bookings
 import logging
 import time
@@ -75,7 +82,14 @@ class Planner:
         self.access = DatabaseAccess(ldb_filepath)
         self.session = Session(engine)
         self.database_lock = Lock()
-        self.env_infos: Dict[str, int] = {}
+        with self.database_lock:
+            self.robot_count = len(self.session.exec(select(RobotInfo)).fetchall())
+            self.cart_count = len(self.session.exec(select(CartInfo)).fetchall())
+            stations = self.session.exec(select(StationInfo)).fetchall()
+        self.ADS_count, self.BCS_count, self.BWS_count, self.RBS_count = [
+            sum(1 for station in stations if station.station_name.startswith(prefix))
+            for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
+        ]
         self.robot_infos: Dict[str, Dict[str, object]] = {}
         self.update_robot_infos()
         self.cart_infos: Dict[str, Dict[str, object]] = {}
@@ -160,12 +174,12 @@ class Planner:
         """
         # TODO Implement distance checks.
         nearest_station: Optional[str] = None
-        for number in range(1, self.env_infos["BCS_count"] + 1):
+        for number in range(1, self.BCS_count + 1):
             station = f"BCS_{number}"
             if not self.is_station_occupied(station):
                 nearest_station = station
         if nearest_station is None:
-            for number in range(1, self.env_infos["BWS_count"] + 1):
+            for number in range(1, self.BWS_count + 1):
                 station = f"BWS_{number}"
                 if not self.is_station_occupied(station):
                     nearest_station = station
@@ -513,9 +527,9 @@ class Planner:
         return False
 
     def run(self, update_interval: float = 1.0) -> None:
-        self.env_infos.update(self.access.fetch_env_infos())
         logging.info(
-            f"Parking area environment info [ {get_list_str_of_dict(self.env_infos)} ] received."
+            f"robot_count: {self.robot_count}, cart_count: {self.cart_count}, ADS_count: {self.ADS_count},"
+            f" BCS_count: {self.BCS_count}, BWS_count: {self.BWS_count}, RBS_count: {self.RBS_count}"
         )
         while self.active:
             self.bookings_updated = False
