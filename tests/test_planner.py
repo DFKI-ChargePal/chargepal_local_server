@@ -18,9 +18,9 @@ import grpc
 import logging
 import os
 import time
-from chargepal_local_server import debug_ldb
+from chargepal_local_server import create_ldb, debug_ldb
 from chargepal_local_server.create_ldb_orders import create_sample_booking
-from chargepal_local_server.create_pdb import reset_db
+from chargepal_local_server.create_pdb import initialize_db
 from chargepal_local_server.planner import (
     BookingState,
     ChargerCommand,
@@ -38,14 +38,11 @@ class Environment:
     def __init__(self, config: Config) -> None:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
+        create_ldb.main(config.robot_count, config.cart_count)
         debug_ldb.counts.set(config.counts_str)
         debug_ldb.delete_from("orders_in")
-        reset_db()
-        # Set all locations to none for entities unused
-        #  to prevent them from blocking stations erroneously.
-        debug_ldb.update("robot_info SET robot_location = 'NONE'")
-        debug_ldb.update("cart_info SET cart_location = 'NONE'")
         debug_ldb.update_locations(config.locations)
+        initialize_db(config)
         self.robot_clients = {
             f"ChargePal{number}": Core("localhost:55555", f"ChargePal{number}")
             for number in range(1, debug_ldb.counts.robots + 1)
