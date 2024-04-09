@@ -526,20 +526,24 @@ class Planner:
             return True
         return False
 
+    def tick(self) -> None:
+        """Execute planning methods once."""
+        self.bookings_updated = False
+        with self.database_lock:
+            copy_from_ldb()
+            self.update_robot_infos()
+            self.update_cart_infos()
+            self.bookings_updated = self.handle_updated_bookings()
+            self.schedule_jobs()
+            self.session.commit()
+
     def run(self, update_interval: float = 1.0) -> None:
         logging.info(
             f"robot_count: {self.robot_count}, cart_count: {self.cart_count}, ADS_count: {self.ADS_count},"
             f" BCS_count: {self.BCS_count}, BWS_count: {self.BWS_count}, RBS_count: {self.RBS_count}"
         )
         while self.active:
-            self.bookings_updated = False
-            copy_from_ldb()
-            with self.database_lock:
-                self.update_robot_infos()
-                self.update_cart_infos()
-                self.bookings_updated = self.handle_updated_bookings()
-                self.schedule_jobs()
-                self.session.commit()
+            self.tick()
             time.sleep(update_interval)
 
 

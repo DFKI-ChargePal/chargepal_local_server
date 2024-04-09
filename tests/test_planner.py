@@ -11,7 +11,6 @@ are not suited as real-time tests.
 from typing import Iterable, Optional, Type
 from types import TracebackType
 from concurrent import futures
-from threading import Thread
 from chargepal_local_server.communication_pb2 import Response_Job
 from chargepal_local_server import communication_pb2_grpc
 import grpc
@@ -47,19 +46,15 @@ class Environment:
             f"ChargePal{number}": Core("localhost:55555", f"ChargePal{number}")
             for number in range(1, debug_ldb.counts.robots + 1)
         }
-        self.planner: Planner
-        self.thread: Thread
+        self.planner = Planner()
 
     def __enter__(self) -> "Environment":
         os.chdir(os.path.dirname(__file__))
-        self.planner = Planner()
         communication_pb2_grpc.add_CommunicationServicer_to_server(
             CommunicationServicer(self.planner), self.server
         )
         self.server.add_insecure_port("[::]:55555")
         self.server.start()
-        self.thread = Thread(target=self.planner.run, args=(0.0,))
-        self.thread.start()
         return self
 
     def __exit__(
@@ -71,28 +66,30 @@ class Environment:
         os.chdir(self.cwd)
         self.planner.active = False
 
-    def wait_for_updated_bookings(self, timeout: float = 1.0) -> None:
-        time_start = time.time()
-        while time.time() - time_start < timeout:
-            time.sleep(0.0)
-            if self.planner.bookings_updated:
-                return
-        raise TimeoutError("Planner did not receive updated bookings.")
-
-    def wait_for_next_job(self, timeout: float = 1.0) -> Response_Job:
+    def wait_for_job(
+        self,
+        client: Core,
+        job_type: Optional[JobType] = None,
+        timeout: float = 1.0,
+    ) -> Response_Job:
         """
-        With timeout, wait for and return the next job received by any client.
-
-        Note: This is prone to race conditions on purpose.
+        With timeout, wait for client to receive its next job.
+        Assert this job is of job_type, and return it.
         """
         time_start = time.time()
+        client.fetch_job()
         while time.time() - time_start < timeout:
-            for client in self.robot_clients.values():
-                response, _ = client.fetch_job()
-                assert response, "No response received for grpc request."
-                if response.job.job_type:
-                    logging.info(response)
-                    return response.job
+            self.planner.tick()
+            time.sleep(0.5)
+            response, _ = client.fetch_job()
+            assert response, "No response received for grpc request."
+            if response.job.job_type:
+                if job_type:
+                    assert (
+                        response.job.job_type == job_type
+                    ), f"{response.job} has wrong job type."
+                logging.info(response)
+                return response.job
         raise TimeoutError("No job.")
 
     def handle_events(self, events: Iterable[Event]) -> None:
@@ -101,40 +98,20 @@ class Environment:
                 create_sample_booking(drop_location=event.planned_BEV_location)
 
 
-def wait_for_job(
-    client: Core, job_type: Optional[JobType] = None, timeout: float = 1.0
-) -> Response_Job:
-    """
-    With timeout, wait for client to receive its next job.
-    Assert this job is of job_type, then return it.
-    """
-    time_start = time.time()
-    while True:
-        response, _ = client.fetch_job()
-        assert response, "No response received for grpc request."
-        if response.job.job_type:
-            break
-        if time.time() - time_start >= timeout:
-            raise TimeoutError("No job.")
-    logging.info(response)
-    if job_type and response.job.job_type != job_type:
-        raise RuntimeError("Wrong job type.")
-    return response.job
-
-
 def test_recharge_self() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         # Test for RECHARGE_SELF job if robot is not at RBS.
         client = environment.robot_clients["ChargePal1"]
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         environment.planner.update_robot_infos()
         # Test for no job if robot is already at RBS.
-        try:
-            wait_for_job(client)
-            raise RuntimeError("Robot got job but should not have.")
-        except TimeoutError:
-            pass
+        for _ in range(3):
+            environment.planner.tick()
+            response, _ = client.fetch_job()
+            assert (
+                not response.job.job_type
+            ), f"Robot got job but should not have: {response.job}"
 
 
 def test_bring_and_recharge() -> None:
@@ -148,13 +125,13 @@ def test_bring_and_recharge() -> None:
         # Check in.
         environment.handle_events(monitoring.get_next_events())
         # Bring BAT_1 to ADS_1.
-        job = wait_for_job(client, JobType.BRING_CHARGER)
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         assert job.target_station == "ADS_1"
         status = monitoring.get_job_status("BRING_CHARGER", job.target_station)
         assert status == "Success"
         client.update_job_monitor("BRING_CHARGER", status)
         # Recharge ChargePal1.
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_1 finish charging.
         debug_ldb.update(
@@ -162,7 +139,7 @@ def test_bring_and_recharge() -> None:
         )
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_1 to BCS_1.
-        job = wait_for_job(client, JobType.RECHARGE_CHARGER)
+        job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
         assert job.target_station == "BCS_1"
         status = monitoring.get_job_status("RECHARGE_CHARGER", job.target_station)
         assert status == "Success"
@@ -171,7 +148,7 @@ def test_bring_and_recharge() -> None:
         environment.handle_events(monitoring.get_next_events())
         assert not monitoring.exists_event()
         # Recharge ChargePal1.
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
@@ -179,43 +156,44 @@ def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        environment.wait_for_updated_bookings()
-        job = wait_for_job(client, JobType.BRING_CHARGER)
+        environment.planner.tick()
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Failure")
         assert job.cart in environment.planner.available_carts, job.cart
-        environment.wait_for_updated_bookings()
-        job = wait_for_job(client, JobType.BRING_CHARGER)
+        environment.planner.tick()
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         debug_ldb.update(
             f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
         )
         client.update_job_monitor("RECHARGE_SELF", "Failure")
-        job = wait_for_job(client, JobType.RECHARGE_CHARGER)
+        job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
         assert job.cart in environment.planner.available_carts, job.cart
         # Note: If recharging charger keeps failing after recovery,
         #  nothing more can be done for it automatically.
-        wait_for_job(client, JobType.RECHARGE_SELF)
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
 
 def test_two_twice_in_parallel() -> None:
     with Environment(CONFIG_DEFAULT) as environment:
+        client1, client2 = list(environment.robot_clients.values())
         for _ in range(2):
             # Create 2 bookings, let 2 robots bring 2 carts.
             for number in (1, 2):
                 create_sample_booking(drop_location=f"ADS_{number}")
-            environment.wait_for_updated_bookings()
-            cart1 = environment.wait_for_next_job().cart
-            cart2 = environment.wait_for_next_job().cart
+            environment.planner.tick()
+            cart1 = environment.wait_for_job(client1, JobType.BRING_CHARGER).cart
+            cart2 = environment.wait_for_job(client2, JobType.BRING_CHARGER).cart
             for client in environment.robot_clients.values():
                 client.update_job_monitor("BRING_CHARGER", "Success")
             # Let both chargers complete while both robots recharge themselves.
-            for _ in range(2):
-                environment.wait_for_next_job()
+            environment.wait_for_job(client1, JobType.RECHARGE_SELF)
+            environment.wait_for_job(client2, JobType.RECHARGE_SELF)
             for charger in (cart1, cart2):
                 environment.planner.handle_charger_update(
                     charger, ChargerCommand.BOOKING_FULFILLED
@@ -223,16 +201,16 @@ def test_two_twice_in_parallel() -> None:
             for client in environment.robot_clients.values():
                 client.update_job_monitor("RECHARGE_SELF", "Success")
             # Let robots retrieve the carts, remember the jobs.
-            job1 = environment.wait_for_next_job()
-            job2 = environment.wait_for_next_job()
+            job1 = environment.wait_for_job(client1)
+            job2 = environment.wait_for_job(client2)
             for job in (job1, job2):
                 environment.robot_clients[job.robot_name].update_job_monitor(
                     job.job_type, "Success"
                 )
             # Stop recharging the chargers which were not stowed,
             #  while both robots recharge themselves.
-            for _ in range(2):
-                environment.wait_for_next_job()
+            environment.wait_for_job(client1, JobType.RECHARGE_SELF)
+            environment.wait_for_job(client2, JobType.RECHARGE_SELF)
             for job in (job1, job2):
                 assert job.job_type in (
                     "RECHARGE_CHARGER",
@@ -252,12 +230,16 @@ def test_status_update() -> None:
         create_sample_booking(
             drop_location="ADS_1", charging_session_status=BookingState.BOOKED
         )
-        wait_for_job(environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF)
+        environment.wait_for_job(
+            environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF
+        )
         client.update_job_monitor("RECHARGE_SELF", "Success")
         debug_ldb.update(
             f"orders_in SET charging_session_status = '{BookingState.CHECKED_IN}'"
         )
-        wait_for_job(environment.robot_clients["ChargePal1"], JobType.BRING_CHARGER)
+        environment.wait_for_job(
+            environment.robot_clients["ChargePal1"], JobType.BRING_CHARGER
+        )
 
 
 def test_plug_in_handshake() -> None:
@@ -268,7 +250,7 @@ def test_plug_in_handshake() -> None:
             "charging_session_status FROM orders_in",
         )[-1][0]
         assert get_status() == BookingState.CHECKED_IN, get_status()
-        wait_for_job(client, JobType.BRING_CHARGER)
+        environment.wait_for_job(client, JobType.BRING_CHARGER)
         assert get_status() == BookingState.SCHEDULED, get_status()
         assert not environment.planner.handshake_plug_in("ChargePal1")
         assert get_status() == BookingState.ROBOT_READY_TO_PLUG, get_status()
@@ -278,8 +260,7 @@ def test_plug_in_handshake() -> None:
             f" WHERE charging_session_status = '{BookingState.ROBOT_READY_TO_PLUG}'"
         )
         assert not environment.planner.handshake_plug_in("ChargePal1")
-        environment.planner.handle_updated_bookings()
-        time.sleep(1.0)
+        environment.planner.tick()
         assert environment.planner.handshake_plug_in("ChargePal1")
 
 
