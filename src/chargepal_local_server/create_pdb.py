@@ -3,16 +3,16 @@ from sqlmodel import Session, delete
 from pscedev import Config
 from chargepal_local_server.pdb_interfaces import (
     Booking,
-    CartInfo,
+    Cart,
     Job,
-    RobotInfo,
-    StationInfo,
+    Robot,
+    Station,
     engine,
 )
 
 
-def create_default_robot(name: str, location: str) -> RobotInfo:
-    return RobotInfo(
+def create_default_robot(name: str, location: str) -> Robot:
+    return Robot(
         robot_name=name,
         robot_location=location,
         current_job_id=None,
@@ -27,8 +27,8 @@ def create_default_robot(name: str, location: str) -> RobotInfo:
     )
 
 
-def create_default_cart(name: str, location: str) -> CartInfo:
-    return CartInfo(
+def create_default_cart(name: str, location: str) -> Cart:
+    return Cart(
         cart_name=name,
         cart_location=location,
         booking_id=None,
@@ -55,7 +55,7 @@ def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> 
         session.add(create_default_robot(robot_name, robot_location))
         if with_RBSs:
             session.add(
-                StationInfo(
+                Station(
                     station_name=f"RBS_{number}",
                     station_pose="",
                     reservation=None,
@@ -77,7 +77,7 @@ def add_default_carts(
         session.add(create_default_cart(cart_name, cart_location))
         if with_BWSs:
             session.add(
-                StationInfo(
+                Station(
                     station_name=f"BWS_{number}",
                     station_pose="",
                     reservation=None,
@@ -86,7 +86,7 @@ def add_default_carts(
             )
         if with_BCSs:
             session.add(
-                StationInfo(
+                Station(
                     station_name=f"BCS_{number}",
                     station_pose="",
                     reservation=None,
@@ -99,7 +99,7 @@ def add_default_ADSs(session: Session, count: int) -> None:
     """Add count ADSs to session."""
     for number in range(1, count + 1):
         session.add(
-            StationInfo(
+            Station(
                 station_name=f"ADS_{number}",
                 station_pose="",
                 reservation=None,
@@ -112,7 +112,7 @@ def add_default_BCSs(session: Session, count: int) -> None:
     """Add count BCSs to session."""
     for number in range(1, count + 1):
         session.add(
-            StationInfo(
+            Station(
                 station_name=f"BCS_{number}",
                 station_pose="",
                 reservation=None,
@@ -124,7 +124,7 @@ def add_default_BCSs(session: Session, count: int) -> None:
 def reset_db() -> None:
     """Reset pdb by clearing all tables, then create one robot, cart, and station each."""
     with Session(engine) as session:
-        for table in (RobotInfo, CartInfo, StationInfo, Job, Booking):
+        for table in (Robot, Cart, Station, Job, Booking):
             session.exec(delete(table))
         add_default_robots(session, 1)
         add_default_carts(session, 1, with_BCSs=True)
@@ -135,11 +135,11 @@ def reset_db() -> None:
 def initialize_db(config: Config) -> None:
     """Initialize pdb with config."""
     with Session(engine) as session:
-        for table in (RobotInfo, CartInfo, StationInfo, Job, Booking):
+        for table in (Robot, Cart, Station, Job, Booking):
             session.exec(delete(table))
         for station_name in config.ADS_names + config.BCS_names:
             session.add(
-                StationInfo(
+                Station(
                     station_name=station_name,
                     station_pose="",
                     reservation=None,
@@ -148,7 +148,7 @@ def initialize_db(config: Config) -> None:
             )
         for station_name in config.BWS_names + config.RBS_names:
             session.add(
-                StationInfo(
+                Station(
                     station_name=station_name,
                     station_pose="",
                     reservation=None,

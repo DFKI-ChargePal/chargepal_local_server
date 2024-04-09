@@ -12,8 +12,8 @@ import sqlite3
 from sqlmodel import Session, insert, select, update
 from chargepal_local_server.pdb_interfaces import (
     Booking,
-    CartInfo,
-    RobotInfo,
+    Cart,
+    Robot,
     engine,
 )
 
@@ -80,7 +80,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             error_count,
         ) in ldb_cursor.fetchall():
             session.exec(
-                update(RobotInfo)
+                update(Robot)
                 .values(
                     robot_location=robot_location,
                     ongoing_action=parse_sql_string(ongoing_action),
@@ -88,7 +88,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                     robot_charge=float(robot_charge),
                     error_count=int(error_count),
                 )
-                .where(RobotInfo.robot_name == robot_name)
+                .where(Robot.robot_name == robot_name)
             )
 
         ldb_cursor.execute(
@@ -101,11 +101,11 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             cart_location,
         ) in ldb_cursor.fetchall():
             session.exec(
-                update(CartInfo)
+                update(Cart)
                 .values(
                     cart_location=cart_location,
                 )
-                .where(CartInfo.cart_name == cart_name)
+                .where(Cart.cart_name == cart_name)
             )
 
         ldb_cursor.execute(
