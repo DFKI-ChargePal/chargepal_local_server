@@ -77,10 +77,7 @@ class Environment:
         Assert this job is of job_type, and return it.
         """
         time_start = time.time()
-        client.fetch_job()
         while time.time() - time_start < timeout:
-            self.planner.tick()
-            time.sleep(0.5)
             response, _ = client.fetch_job()
             assert response, "No response received for grpc request."
             if response.job.job_type:
@@ -90,6 +87,8 @@ class Environment:
                     ), f"{response.job} has wrong job type."
                 logging.info(response)
                 return response.job
+            self.planner.tick()
+            time.sleep(0.5)
         raise TimeoutError("No job.")
 
     def handle_events(self, events: Iterable[Event]) -> None:
@@ -104,7 +103,6 @@ def test_recharge_self() -> None:
         client = environment.robot_clients["ChargePal1"]
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
-        environment.planner.update_robot_infos()
         # Test for no job if robot is already at RBS.
         for _ in range(3):
             environment.planner.tick()
@@ -156,11 +154,9 @@ def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        environment.planner.tick()
-        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER, timeout=10.0)
         client.update_job_monitor("BRING_CHARGER", "Failure")
-        assert job.cart in environment.planner.available_carts, job.cart
-        environment.planner.tick()
+        assert environment.planner.get_cart(job.cart).available, job.cart
         job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
@@ -172,7 +168,7 @@ def test_failures() -> None:
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
-        assert job.cart in environment.planner.available_carts, job.cart
+        assert environment.planner.get_cart(job.cart).available, job.cart
         # Note: If recharging charger keeps failing after recovery,
         #  nothing more can be done for it automatically.
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
@@ -186,7 +182,6 @@ def test_two_twice_in_parallel() -> None:
             # Create 2 bookings, let 2 robots bring 2 carts.
             for number in (1, 2):
                 create_sample_booking(drop_location=f"ADS_{number}")
-            environment.planner.tick()
             cart1 = environment.wait_for_job(client1, JobType.BRING_CHARGER).cart
             cart2 = environment.wait_for_job(client2, JobType.BRING_CHARGER).cart
             for client in environment.robot_clients.values():

@@ -6,7 +6,6 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
 from threading import Lock
-from chargepal_local_server import access_ldb
 from chargepal_local_server.access_ldb import DatabaseAccess
 from chargepal_local_server.pdb_interfaces import (
     Booking,
@@ -90,19 +89,11 @@ class Planner:
             sum(1 for station in stations if station.station_name.startswith(prefix))
             for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
         ]
-        self.robot_infos: Dict[str, Dict[str, object]] = {}
-        self.update_robot_infos()
-        self.cart_infos: Dict[str, Dict[str, object]] = {}
-        self.update_cart_infos()
         self.last_fetched_change = datetime.min
         # Store which cart is currently fulfilling which booking.
         self.current_bookings: Dict[str, int] = {}
         # Store which battery charging station is currently reserved for which cart.
         self.current_reservations: Dict[str, str] = {}
-        # Manage currently available robots and carts, which can perform jobs now.
-        self.available_robots: List[str] = []
-        # TODO Implement availability signal received from chargers.
-        self.available_carts: List[str] = list(self.cart_infos.keys())
         # Manage currently ready chargers, which expect their next commands.
         self.ready_chargers: Dict[str, ChargerCommand] = {}
         self.active = True
@@ -112,6 +103,22 @@ class Planner:
         self.access.delete_bookings()
         # Store whether planner received updated bookings.
         self.bookings_updated = False
+
+    def get_robot(self, name: str) -> Robot:
+        """Return robot with name."""
+        return self.session.exec(select(Robot).where(Robot.robot_name == name)).first()
+
+    def get_available_robots(self) -> List[Robot]:
+        """Return list of available robots."""
+        return list(self.session.exec(select(Robot).where(Robot.available)).fetchall())
+
+    def get_cart(self, name: str) -> Cart:
+        """Return cart with name."""
+        return self.session.exec(select(Cart).where(Cart.cart_name == name)).first()
+
+    def get_available_carts(self) -> List[Cart]:
+        """Return list of available carts."""
+        return list(self.session.exec(select(Cart).where(Cart.available)).fetchall())
 
     def get_booking(self, booking_id: int) -> Booking:
         """Return booking with booking_id."""
@@ -153,20 +160,31 @@ class Planner:
         job.robot_name = robot_name
         logging.debug(f"{job} assigned to {robot_name}.")
 
-    def pop_nearest_cart(self, station_name: str, charge: float) -> Optional[str]:
+    def pop_nearest_cart(self, station_name: str, charge: float) -> Optional[Cart]:
         """Find nearest available cart to station which can provide charge."""
         # TODO Implement distance and power checks.
-        return self.available_carts.pop(0) if self.available_carts else None
+        available_carts = self.get_available_carts()
+        if available_carts:
+            cart = available_carts.pop(0)
+            cart.available = False
+            return cart
+        return None
 
-    def pop_nearest_robot(self, station_name: str) -> Optional[str]:
+    def pop_nearest_robot(self, station_name: str) -> Optional[Robot]:
         """Find nearest available robot to station."""
         # TODO Implement distance checks.
-        return self.available_robots.pop(0) if self.available_robots else None
+        available_robots = self.get_available_robots()
+        if available_robots:
+            robot = available_robots.pop(0)
+            robot.available = False
+            return robot
+        return None
 
     def is_station_occupied(self, station_name: str) -> bool:
         """Return whether station is reserved for or used by any cart."""
+        cart_locations = self.session.exec(select(Cart.cart_location)).fetchall()
         return station_name in self.current_reservations.keys() or any(
-            station_name in infos["cart_location"] for infos in self.cart_infos.values()
+            station_name in cart_location for cart_location in cart_locations
         )
 
     def pop_nearest_station(self, station_name: str) -> Optional[str]:
@@ -174,6 +192,7 @@ class Planner:
         Find nearest available station for a charger,
         preferably a battery charging station, else a battery waiting station.
         """
+        # TODO Handle station being a location between stations.
         # TODO Implement distance checks.
         nearest_station: Optional[str] = None
         for number in range(1, self.BCS_count + 1):
@@ -186,20 +205,6 @@ class Planner:
                 if not self.is_station_occupied(station_name):
                     nearest_station = station_name
         return nearest_station
-
-    def update_robot_infos(self) -> None:
-        """Update robot infos from ldb."""
-        self.robot_infos.update(
-            self.access.fetch_by_first_header(
-                "robot_info", access_ldb.ROBOT_INFO_HEADERS
-            )
-        )
-
-    def update_cart_infos(self) -> None:
-        """Update cart infos from ldb."""
-        self.cart_infos.update(
-            self.access.fetch_by_first_header("cart_info", access_ldb.CART_INFO_HEADERS)
-        )
 
     def update_job(self, robot_name: str, job_type: str, job_status: str) -> bool:
         """Update job status."""
@@ -239,9 +244,11 @@ class Planner:
                     self.plugin_states[job.booking_id] = PlugInState.SUCCESS
                     self.access.update_session_status(job.booking_id, "plugin_success")
                 elif job.type == JobType.STOW_CHARGER:
-                    # Note: Assume cart is always available for development until charger can confirm it in reality.
-                    assert job.cart_name not in self.available_carts, job
-                    self.available_carts.append(job.cart_name)
+                    # Note: Assume cart is always available for development
+                    #  until charger can confirm it in reality.
+                    cart = self.get_cart(job.cart_name)
+                    assert not cart.available, cart
+                    cart.available = True
                 self.session.commit()
                 return True
             if job_status == "Failure":
@@ -276,8 +283,9 @@ class Planner:
                             booking_id, BookingState.CHECKED_IN
                         )
                         logging.debug(f"{booking} reset to checked-in.")
-                    if job.cart_name not in self.available_carts:
-                        self.available_carts.append(job.cart_name)
+                    cart = self.get_cart(job.cart_name)
+                    if not cart.available:
+                        cart.available = True
                 self.session.commit()
                 return True
         if job_status == "Recovery":
@@ -363,10 +371,9 @@ class Planner:
         elif command == ChargerCommand.START_RECHARGING:
             pass
         elif command == ChargerCommand.STOP_RECHARGING:
-            assert (
-                charger not in self.available_carts
-            ), f"{charger} was available during recharging."
-            self.available_carts.append(charger)
+            cart = self.get_cart(charger)
+            assert not cart.available, f"{cart} was available during recharging."
+            cart.available = True
         elif command in (
             ChargerCommand.RETRIEVE_CHARGER,
             ChargerCommand.BOOKING_FULFILLED,
@@ -394,11 +401,11 @@ class Planner:
         for job in self.session.exec(
             select(Job).where(Job.state == JobState.OPEN)
         ).fetchall():
-            if not self.available_robots:
+            if not self.get_available_robots():
                 return
 
             if job.type == JobType.BRING_CHARGER:
-                if not self.available_carts:
+                if not self.get_available_carts():
                     continue
 
                 assert job.booking_id and job.target_station, job
@@ -408,24 +415,25 @@ class Planner:
                     self.get_booking(job.booking_id).actual_plugintime_calculated,
                 )
                 assert (
-                    cart not in self.current_bookings.keys()
-                ), f"{cart} is already used for {self.current_bookings[cart]}."
-                source_station = str(self.cart_infos[cart]["cart_location"])
-                robot = self.pop_nearest_robot(source_station)
-                self.assign_job(job, robot)  # Transition J1
-                job.cart_name = cart
-                job.source_station = source_station
-                self.current_bookings[cart] = job.booking_id
+                    cart.cart_name not in self.current_bookings.keys()
+                ), f"{cart} is already used for {self.current_bookings[cart.cart_name]}."
+                robot = self.pop_nearest_robot(cart.cart_location)
+                assert robot, cart
+                self.assign_job(job, robot.robot_name)  # Transition J1
+                job.cart_name = cart.cart_name
+                job.source_station = cart.cart_location
+                self.current_bookings[cart.cart_name] = job.booking_id
                 self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
             elif job.type == JobType.RETRIEVE_CHARGER:
                 assert job.cart_name and job.source_station, job
                 robot = self.pop_nearest_robot(job.source_station)
+                assert robot, job
                 target_station = self.pop_nearest_station(
-                    self.cart_infos[job.cart_name]["cart_location"]
+                    self.get_cart(job.cart_name).cart_location
                 )
                 # Note: In a real setup, there should always exist at least a BWS as target_station.
                 if target_station:
-                    self.assign_job(job, robot)  # Transition J3
+                    self.assign_job(job, robot.robot_name)  # Transition J3
                     if target_station.startswith("BCS_"):
                         job.type = JobType.RECHARGE_CHARGER
                         assert (
@@ -447,23 +455,22 @@ class Planner:
                 else:
                     logging.warning("Warning: No station available.")
         # Let all remaining available robots not at RBS recharge themselves.
-        for robot in list(self.available_robots):
-            check_job = self.get_current_job(robot)
-            robot_location: str = self.robot_infos[robot]["robot_location"]
-            if not check_job and not robot_location.startswith("RBS_"):
-                assert robot.startswith("ChargePal"), robot
+        available_robots = self.get_available_robots()
+        for robot in available_robots:
+            check_job = self.get_current_job(robot.robot_name)
+            if not check_job and not robot.robot_location.startswith("RBS_"):
                 job = self.add_new_job(
                     Job(
                         type=JobType.RECHARGE_SELF,
                         state=JobState.PENDING,
                         schedule=datetime.now(),
                         currently_assigned=True,
-                        robot_name=robot,
-                        target_station=f"RBS_{robot[9:]}",
+                        robot_name=robot.robot_name,
+                        target_station=f"RBS_{robot.robot_name[9:]}",
                     )
                 )  # Transition J0 + J1
                 logging.debug(f"{job} created.")
-                self.available_robots.remove(robot)
+                robot.available = False
 
     def fetch_job(self, robot_name: str) -> Dict[str, str]:
         """Fetch pending job for robot."""
@@ -485,12 +492,10 @@ class Planner:
                 return job_details
 
             # Consider robot trying to fetch a job as available.
-            if (
-                robot_name not in self.available_robots
-                # For robustness, make sure the current job has been cleared.
-                and not job
-            ):
-                self.available_robots.append(robot_name)
+            robot = self.get_robot(robot_name)
+            # For robustness, make sure the current job has been cleared.
+            if not robot.available and not job:
+                robot.available = True
 
         return {
             "job_type": "",
@@ -535,8 +540,6 @@ class Planner:
         self.bookings_updated = False
         with self.database_lock:
             copy_from_ldb()
-            self.update_robot_infos()
-            self.update_cart_infos()
             self.bookings_updated = self.handle_updated_bookings()
             self.schedule_jobs()
             self.session.commit()
