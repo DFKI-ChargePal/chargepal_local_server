@@ -189,9 +189,9 @@ def test_two_twice_in_parallel() -> None:
             # Let both chargers complete while both robots recharge themselves.
             environment.wait_for_job(client1, JobType.RECHARGE_SELF)
             environment.wait_for_job(client2, JobType.RECHARGE_SELF)
-            for charger in (cart1, cart2):
+            for cart in (cart1, cart2):
                 environment.planner.handle_charger_update(
-                    charger, ChargerCommand.BOOKING_FULFILLED
+                    environment.planner.get_cart(cart), ChargerCommand.BOOKING_FULFILLED
                 )
             for client in environment.robot_clients.values():
                 client.update_job_monitor("RECHARGE_SELF", "Success")
@@ -213,7 +213,8 @@ def test_two_twice_in_parallel() -> None:
                 ), job.job_type
                 if job.job_type == "RECHARGE_CHARGER":
                     environment.planner.handle_charger_update(
-                        job.cart, ChargerCommand.STOP_RECHARGING
+                        environment.planner.get_cart(job.cart),
+                        ChargerCommand.STOP_RECHARGING,
                     )
             for client in environment.robot_clients.values():
                 client.update_job_monitor("RECHARGE_SELF", "Success")

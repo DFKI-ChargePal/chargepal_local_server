@@ -89,14 +89,9 @@ class Planner:
             sum(1 for station in stations if station.station_name.startswith(prefix))
             for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
         ]
-        self.last_fetched_change = datetime.min
-        # Store which cart is currently fulfilling which booking.
-        self.current_bookings: Dict[str, int] = {}
-        # Store which battery charging station is currently reserved for which cart.
-        self.current_reservations: Dict[str, str] = {}
+        self.active = True
         # Manage currently ready chargers, which expect their next commands.
         self.ready_chargers: Dict[str, ChargerCommand] = {}
-        self.active = True
         # Manage current states of plug-in jobs for bookings.
         self.plugin_states: Dict[int, PlugInState] = {}
         # Delete existing bookings from the database for development phase.
@@ -119,6 +114,12 @@ class Planner:
     def get_available_carts(self) -> List[Cart]:
         """Return list of available carts."""
         return list(self.session.exec(select(Cart).where(Cart.available)).fetchall())
+
+    def get_station(self, name: str) -> Station:
+        """Return station with name."""
+        return self.session.exec(
+            select(Station).where(Station.station_name == name)
+        ).first()
 
     def get_booking(self, booking_id: int) -> Booking:
         """Return booking with booking_id."""
@@ -183,7 +184,7 @@ class Planner:
     def is_station_occupied(self, station_name: str) -> bool:
         """Return whether station is reserved for or used by any cart."""
         cart_locations = self.session.exec(select(Cart.cart_location)).fetchall()
-        return station_name in self.current_reservations.keys() or any(
+        return self.get_station(station_name).reservation or any(
             station_name in cart_location for cart_location in cart_locations
         )
 
@@ -231,11 +232,12 @@ class Planner:
                     f" than its current job '{job.type}'."
                 )
                 # Update locations of robot and potentially cart.
-                if job.target_station in self.current_reservations.keys():
+                station = self.get_station(job.target_station)
+                if station.reservation:
                     assert (
-                        self.current_reservations[job.target_station] == job.cart_name
-                    ), f"{job.target_station} was not reserved for {job.cart_name}."
-                    self.current_reservations.pop(job.target_station)
+                        station.reservation == job.cart_name
+                    ), f"{station} was not reserved for {job.cart_name}."
+                    station.reservation = None
                 self.access.update_location(
                     job.target_station, job.robot_name, job.cart_name
                 )
@@ -260,28 +262,23 @@ class Planner:
                     robot_name,
                 )
                 assert job_type == job.type, (job_type, job)
-                if (
-                    job.target_station
-                    and job.target_station in self.current_reservations.keys()
-                ):
-                    assert (
-                        self.current_reservations[job.target_station] == job.cart_name
-                    ), (
-                        self.current_reservations,
-                        job,
-                    )
-                    self.current_reservations.pop(job.target_station)
+                if job.target_station:
+                    station = self.get_station(job.target_station)
+                    if station.reservation:
+                        assert station.reservation == job.cart_name, job
+                        station.reservation = None
                 if job.cart_name:
-                    if job.cart_name in self.current_bookings.keys():
-                        booking_id = self.current_bookings.pop(job.cart_name)
-                        booking = self.get_booking(booking_id)
+                    cart = self.get_cart(job.cart_name)
+                    if cart.booking_id:
+                        booking = self.get_booking(cart.booking_id)
                         assert not BookingState.equals(
                             booking.charging_session_status, BookingState.CHECKED_IN
                         ), booking
                         booking.charging_session_status = BookingState.CHECKED_IN
                         self.access.update_session_status(
-                            booking_id, BookingState.CHECKED_IN
+                            cart.booking_id, BookingState.CHECKED_IN
                         )
+                        cart.booking_id = None
                         logging.debug(f"{booking} reset to checked-in.")
                     cart = self.get_cart(job.cart_name)
                     if not cart.available:
@@ -349,52 +346,49 @@ class Planner:
             elif BookingState.equals(
                 booking.charging_session_status, BookingState.FINISHED
             ):
-                for cart, check in list(self.current_bookings.items()):
-                    if check == booking.id:
-                        self.handle_charger_update(
-                            cart, ChargerCommand.BOOKING_FULFILLED
-                        )
+                cart = self.session.exec(
+                    select(Cart).where(Cart.booking_id == booking.id)
+                ).first()
+                if cart:
+                    self.handle_charger_update(cart, ChargerCommand.BOOKING_FULFILLED)
         return bool(updated_bookings)
 
     def confirm_charger_ready(self, robot_name: str) -> None:
         """Confirm charger brought and connected by robot as ready."""
-        cart = self.get_current_job(robot_name).cart_name
+        cart_name = self.get_current_job(robot_name).cart_name
         assert (
-            cart not in self.ready_chargers.keys()
-        ), f"Charger {cart} is already ready."
-        self.ready_chargers[cart] = ChargerCommand.START_CHARGING
+            cart_name not in self.ready_chargers.keys()
+        ), f"Charger {cart_name} is already ready."
+        self.ready_chargers[cart_name] = ChargerCommand.START_CHARGING
 
-    def handle_charger_update(self, charger: str, command: ChargerCommand) -> None:
+    def handle_charger_update(self, cart: Cart, command: ChargerCommand) -> None:
         """Handle charger signaling command."""
         if command == ChargerCommand.START_CHARGING:
             pass
         elif command == ChargerCommand.START_RECHARGING:
             pass
         elif command == ChargerCommand.STOP_RECHARGING:
-            cart = self.get_cart(charger)
             assert not cart.available, f"{cart} was available during recharging."
             cart.available = True
         elif command in (
             ChargerCommand.RETRIEVE_CHARGER,
             ChargerCommand.BOOKING_FULFILLED,
         ):
-            assert (
-                charger in self.current_bookings.keys()
-            ), f"{charger} has no current booking."
+            assert cart.booking_id, f"{cart} has no current booking."
             job = self.add_new_job(
                 Job(
                     type=JobType.RETRIEVE_CHARGER,
                     state=JobState.OPEN,
                     schedule=datetime.now(),
                     currently_assigned=False,
-                    cart_name=charger,
+                    cart_name=cart.cart_name,
                     source_station=self.get_booking(
-                        self.current_bookings[charger]
+                        cart.booking_id
                     ).actual_BEV_location,
                 )
             )  # Transition J0
             logging.info(f"{job} created.")
-            self.current_bookings.pop(charger)  # Transition B2
+            cart.booking_id = None  # Transition B2
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -414,16 +408,17 @@ class Planner:
                     job.target_station,
                     self.get_booking(job.booking_id).actual_plugintime_calculated,
                 )
-                assert (
-                    cart.cart_name not in self.current_bookings.keys()
-                ), f"{cart} is already used for {self.current_bookings[cart.cart_name]}."
-                robot = self.pop_nearest_robot(cart.cart_location)
-                assert robot, cart
-                self.assign_job(job, robot.robot_name)  # Transition J1
-                job.cart_name = cart.cart_name
-                job.source_station = cart.cart_location
-                self.current_bookings[cart.cart_name] = job.booking_id
-                self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
+                if cart:
+                    assert (
+                        cart.booking_id is None
+                    ), f"{cart} is already used for {self.get_booking(cart.booking_id)}."
+                    robot = self.pop_nearest_robot(cart.cart_location)
+                    if robot:
+                        self.assign_job(job, robot.robot_name)  # Transition J1
+                        job.cart_name = cart.cart_name
+                        job.source_station = cart.cart_location
+                        cart.booking_id = job.booking_id
+                        self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
             elif job.type == JobType.RETRIEVE_CHARGER:
                 assert job.cart_name and job.source_station, job
                 robot = self.pop_nearest_robot(job.source_station)
@@ -436,10 +431,11 @@ class Planner:
                     self.assign_job(job, robot.robot_name)  # Transition J3
                     if target_station.startswith("BCS_"):
                         job.type = JobType.RECHARGE_CHARGER
+                        station = self.get_station(target_station)
                         assert (
-                            target_station not in self.current_reservations.keys()
-                        ), f"{target_station} is already reserved for {self.current_reservations[target_station]}."
-                        self.current_reservations[target_station] = job.cart_name
+                            station.reservation is None
+                        ), f"{station} is already reserved."
+                        station.reservation = job.cart_name
                         job.target_station = target_station
                     elif target_station.startswith("BWS_"):
                         job.type = JobType.STOW_CHARGER
