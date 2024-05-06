@@ -70,7 +70,7 @@ class Environment:
         self,
         client: Core,
         job_type: Optional[JobType] = None,
-        timeout: float = 1.0,
+        timeout: float = 10.0,
     ) -> Response_Job:
         """
         With timeout, wait for client to receive its next job.
@@ -154,8 +154,9 @@ def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        job = environment.wait_for_job(client, JobType.BRING_CHARGER, timeout=10.0)
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Failure")
+        environment.planner.tick()
         assert environment.planner.get_cart(job.cart).available, job.cart
         job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Success")
@@ -168,6 +169,7 @@ def test_failures() -> None:
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
+        environment.planner.tick()
         assert environment.planner.get_cart(job.cart).available, job.cart
         # Note: If recharging charger keeps failing after recovery,
         #  nothing more can be done for it automatically.

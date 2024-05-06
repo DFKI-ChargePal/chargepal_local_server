@@ -1,11 +1,10 @@
 """Rule-based planner for ChargePal robot fleet control"""
 
 #!/usr/bin/env python3
-from typing import Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
-from threading import Lock
 from chargepal_local_server.access_ldb import DatabaseAccess
 from chargepal_local_server.pdb_interfaces import (
     Booking,
@@ -80,11 +79,9 @@ class Planner:
     def __init__(self, ldb_filepath: Optional[str] = None) -> None:
         self.access = DatabaseAccess(ldb_filepath)
         self.session = Session(engine)
-        self.database_lock = Lock()
-        with self.database_lock:
-            self.robot_count = len(self.session.exec(select(Robot)).fetchall())
-            self.cart_count = len(self.session.exec(select(Cart)).fetchall())
-            stations = self.session.exec(select(Station)).fetchall()
+        self.robot_count = len(self.session.exec(select(Robot)).fetchall())
+        self.cart_count = len(self.session.exec(select(Cart)).fetchall())
+        stations = self.session.exec(select(Station)).fetchall()
         self.ADS_count, self.BCS_count, self.BWS_count, self.RBS_count = [
             sum(1 for station in stations if station.station_name.startswith(prefix))
             for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
@@ -98,6 +95,10 @@ class Planner:
         self.access.delete_bookings()
         # Store whether planner received updated bookings.
         self.bookings_updated = False
+        # Store job requests from job for synchroneous handling.
+        self.job_requests: List[Tuple[Callable[..., object], Tuple[str, ...]]] = []
+        # Maintain jobs to be fetched by robots.
+        self.next_jobs: Dict[str, object] = {}
 
     def get_robot(self, name: str) -> Robot:
         """Return robot with name."""
@@ -208,83 +209,93 @@ class Planner:
         return nearest_station
 
     def update_job(self, robot_name: str, job_type: str, job_status: str) -> bool:
-        """Update job status."""
-        with self.database_lock:
-            job = self.get_current_job(robot_name)
-            if not job:
-                logging.warning(
-                    f"Warning: {robot_name} without current job sent a job update."
-                )
-                return False
+        self.job_requests.append(
+            (
+                self.handle_update_job,
+                (
+                    robot_name,
+                    job_type,
+                    job_status,
+                ),
+            )
+        )
+        return True
 
-            logging.info(f"{robot_name} sends update '{job_status}' for {job}.")
-            if job_status == "Success":
-                job.state = JobState.COMPLETE  # Transition J9
-                job.currently_assigned = False
-                logging.debug(f"{job} for {robot_name} complete.")
+    def handle_update_job(
+        self, robot_name: str, job_type: str, job_status: str
+    ) -> bool:
+        """Update job status."""
+        job = self.get_current_job(robot_name)
+        if not job:
+            logging.warning(
+                f"Warning: {robot_name} without current job sent a job update."
+            )
+            return False
+
+        logging.info(f"{robot_name} sends update '{job_status}' for {job}.")
+        if job_status == "Success":
+            job.state = JobState.COMPLETE  # Transition J9
+            job.currently_assigned = False
+            logging.debug(f"{job} for {robot_name} complete.")
+            assert (
+                job.robot_name and job.robot_name == robot_name and job.target_station
+            ), job
+            assert job_type == job.type, (
+                f"{robot_name} sent update of different job '{job_type}'"
+                f" than its current job '{job.type}'."
+            )
+            # Update locations of robot and potentially cart.
+            station = self.get_station(job.target_station)
+            if station.reservation:
                 assert (
-                    job.robot_name
-                    and job.robot_name == robot_name
-                    and job.target_station
-                ), job
-                assert job_type == job.type, (
-                    f"{robot_name} sent update of different job '{job_type}'"
-                    f" than its current job '{job.type}'."
-                )
-                # Update locations of robot and potentially cart.
+                    station.reservation == job.cart_name
+                ), f"{station} was not reserved for {job.cart_name}."
+                station.reservation = None
+            self.access.update_location(
+                job.target_station, job.robot_name, job.cart_name
+            )
+            # Update charging_session_status.
+            if job.type == JobType.BRING_CHARGER:
+                self.plugin_states[job.booking_id] = PlugInState.SUCCESS
+                self.access.update_session_status(job.booking_id, "plugin_success")
+            elif job.type == JobType.STOW_CHARGER:
+                # Note: Assume cart is always available for development
+                #  until charger can confirm it in reality.
+                cart = self.get_cart(job.cart_name)
+                assert not cart.available, cart
+                cart.available = True
+            return True
+        if job_status == "Failure":
+            job.state = JobState.FAILED
+            job.currently_assigned = False
+            logging.warning(f"Warning: {job} for {robot_name} failed!")
+            assert job.robot_name and job.robot_name == robot_name, (
+                job,
+                robot_name,
+            )
+            assert job_type == job.type, (job_type, job)
+            if job.target_station:
                 station = self.get_station(job.target_station)
                 if station.reservation:
-                    assert (
-                        station.reservation == job.cart_name
-                    ), f"{station} was not reserved for {job.cart_name}."
+                    assert station.reservation == job.cart_name, job
                     station.reservation = None
-                self.access.update_location(
-                    job.target_station, job.robot_name, job.cart_name
-                )
-                # Update charging_session_status.
-                if job.type == JobType.BRING_CHARGER:
-                    self.plugin_states[job.booking_id] = PlugInState.SUCCESS
-                    self.access.update_session_status(job.booking_id, "plugin_success")
-                elif job.type == JobType.STOW_CHARGER:
-                    # Note: Assume cart is always available for development
-                    #  until charger can confirm it in reality.
-                    cart = self.get_cart(job.cart_name)
-                    assert not cart.available, cart
+            if job.cart_name:
+                cart = self.get_cart(job.cart_name)
+                if cart.booking_id:
+                    booking = self.get_booking(cart.booking_id)
+                    assert not BookingState.equals(
+                        booking.charging_session_status, BookingState.CHECKED_IN
+                    ), booking
+                    booking.charging_session_status = BookingState.CHECKED_IN
+                    self.access.update_session_status(
+                        cart.booking_id, BookingState.CHECKED_IN
+                    )
+                    cart.booking_id = None
+                    logging.debug(f"{booking} reset to checked-in.")
+                cart = self.get_cart(job.cart_name)
+                if not cart.available:
                     cart.available = True
-                self.session.commit()
-                return True
-            if job_status == "Failure":
-                job.state = JobState.FAILED
-                job.currently_assigned = False
-                logging.warning(f"Warning: {job} for {robot_name} failed!")
-                assert job.robot_name and job.robot_name == robot_name, (
-                    job,
-                    robot_name,
-                )
-                assert job_type == job.type, (job_type, job)
-                if job.target_station:
-                    station = self.get_station(job.target_station)
-                    if station.reservation:
-                        assert station.reservation == job.cart_name, job
-                        station.reservation = None
-                if job.cart_name:
-                    cart = self.get_cart(job.cart_name)
-                    if cart.booking_id:
-                        booking = self.get_booking(cart.booking_id)
-                        assert not BookingState.equals(
-                            booking.charging_session_status, BookingState.CHECKED_IN
-                        ), booking
-                        booking.charging_session_status = BookingState.CHECKED_IN
-                        self.access.update_session_status(
-                            cart.booking_id, BookingState.CHECKED_IN
-                        )
-                        cart.booking_id = None
-                        logging.debug(f"{booking} reset to checked-in.")
-                    cart = self.get_cart(job.cart_name)
-                    if not cart.available:
-                        cart.available = True
-                self.session.commit()
-                return True
+            return True
         if job_status == "Recovery":
             pass
         elif job_status == "Ongoing":
@@ -360,6 +371,7 @@ class Planner:
             cart_name not in self.ready_chargers.keys()
         ), f"Charger {cart_name} is already ready."
         self.ready_chargers[cart_name] = ChargerCommand.START_CHARGING
+        self.session.commit()
 
     def handle_charger_update(self, cart: Cart, command: ChargerCommand) -> None:
         """Handle charger signaling command."""
@@ -389,6 +401,7 @@ class Planner:
             )  # Transition J0
             logging.info(f"{job} created.")
             cart.booking_id = None  # Transition B2
+        self.session.commit()
 
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
@@ -470,28 +483,9 @@ class Planner:
 
     def fetch_job(self, robot_name: str) -> Dict[str, str]:
         """Fetch pending job for robot."""
-        with self.database_lock:
-            job = self.get_current_job(robot_name)
-            if job and job.state == JobState.PENDING:
-                job.state = JobState.ONGOING  # Transition J2
-                job_details = {
-                    "job_type": job.type,
-                    "robot_name": robot_name,
-                    "cart": job.cart_name,
-                    "source_station": job.source_station,
-                    "target_station": job.target_station,
-                }
-                logging.info(
-                    f"Job {job.id} [ {get_list_str_of_dict(job_details)} ] sent."
-                )
-                self.session.commit()
-                return job_details
-
-            # Consider robot trying to fetch a job as available.
-            robot = self.get_robot(robot_name)
-            # For robustness, make sure the current job has been cleared.
-            if not robot.available and not job:
-                robot.available = True
+        self.job_requests.append((self.handle_fetch_job, (robot_name,)))
+        if robot_name in self.next_jobs.keys():
+            return self.next_jobs.pop(robot_name)
 
         return {
             "job_type": "",
@@ -500,6 +494,30 @@ class Planner:
             "source_station": "",
             "target_station": "",
         }
+
+    def handle_fetch_job(self, robot_name: str) -> None:
+        """Handle request to fetch next job for robot with robot_name."""
+        job = self.get_current_job(robot_name)
+        if job and job.state == JobState.PENDING:
+            job.state = JobState.ONGOING  # Transition J2
+            job_details = {
+                "job_type": job.type,
+                "robot_name": robot_name,
+                "cart": job.cart_name,
+                "source_station": job.source_station,
+                "target_station": job.target_station,
+            }
+            logging.info(
+                f"Job {job.id} [ {get_list_str_of_dict(job_details)} ] prepared."
+            )
+            self.next_jobs[robot_name] = job_details
+            return
+
+        # Consider robot trying to fetch a job as available.
+        robot = self.get_robot(robot_name)
+        # For robustness, make sure the current job has been cleared.
+        if not robot.available and not job:
+            robot.available = True
 
     def fetch_job_from_keyboard_input(self, robot_name: str) -> Dict[str, str]:
         job_type = input("Enter job type: ")
@@ -531,14 +549,20 @@ class Planner:
             return True
         return False
 
+    def handle_job_requests(self) -> None:
+        """Handle queued job requests."""
+        while self.job_requests:
+            callback, args = self.job_requests.pop()
+            callback(*args)
+
     def tick(self) -> None:
         """Execute planning methods once."""
         self.bookings_updated = False
-        with self.database_lock:
-            copy_from_ldb()
-            self.bookings_updated = self.handle_updated_bookings()
-            self.schedule_jobs()
-            self.session.commit()
+        copy_from_ldb()
+        self.bookings_updated = self.handle_updated_bookings()
+        self.schedule_jobs()
+        self.handle_job_requests()
+        self.session.commit()
 
     def run(self, update_interval: float = 1.0) -> None:
         logging.info(
