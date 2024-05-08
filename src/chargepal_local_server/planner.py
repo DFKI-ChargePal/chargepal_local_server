@@ -519,21 +519,6 @@ class Planner:
         if not robot.available and not job:
             robot.available = True
 
-    def fetch_job_from_keyboard_input(self, robot_name: str) -> Dict[str, str]:
-        job_type = input("Enter job type: ")
-        cart = input("Enter cart name: ")
-        source_station = input("Enter source_station name: ")
-        target_station = input("Enter target_station name: ")
-
-        job_details = {
-            "job_type": job_type,
-            "robot_name": robot_name,
-            "cart": cart,
-            "source_station": source_station,
-            "target_station": target_station,
-        }
-        return job_details
-
     def handshake_plug_in(self, robot_name: str) -> bool:
         booking_id = self.get_current_job(robot_name).booking_id
         booking = self.get_booking(booking_id)
@@ -565,6 +550,7 @@ class Planner:
         self.session.commit()
 
     def run(self, update_interval: float = 1.0) -> None:
+        logging.basicConfig(level=logging.DEBUG)
         logging.info(
             f"robot_count: {self.robot_count}, cart_count: {self.cart_count}, ADS_count: {self.ADS_count},"
             f" BCS_count: {self.BCS_count}, BWS_count: {self.BWS_count}, RBS_count: {self.RBS_count}"
@@ -577,7 +563,6 @@ class Planner:
 if __name__ == "__main__":
     planner = Planner()
     try:
-        logging.basicConfig(level=logging.DEBUG)
         planner.run()
     except AssertionError:
         planner.session.commit()

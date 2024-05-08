@@ -30,11 +30,12 @@ message Response_PullLDB {
 }
 
 message Response_Job {
-    string job_type = 1;
-    string robot_name = 2;
-    string cart = 3;
-    string source_station = 4;
-    string target_station = 5;
+    string job_id = 1;
+    string job_type = 2;
+    string robot_name = 3;
+    string cart = 4;
+    string source_station = 5;
+    string target_station = 6;
 }
 
 message Response_FetchJob {

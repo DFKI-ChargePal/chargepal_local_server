@@ -17,10 +17,13 @@ def main(robots_count: int = 1, carts_count: int = 1):
         CREATE TABLE IF NOT EXISTS robot_info (
             robot_name TEXT,
             robot_location TEXT,
+            current_job_id INTEGER,
             current_job TEXT,
             ongoing_action TEXT,
             previous_action TEXT,
             cart_on_robot TEXT,
+            job_status TEXT,
+            availability INTEGER,
             robot_charge FLOAT,
             error_count INTEGER
         )
@@ -33,7 +36,7 @@ def main(robots_count: int = 1, carts_count: int = 1):
             cart_location TEXT,
             robot_on_cart TEXT,
             plugged TEXT,
-            cart_charge FLOAT,
+            action_state TEXT,
             error_count INTEGER
         )
         """
@@ -51,17 +54,17 @@ def main(robots_count: int = 1, carts_count: int = 1):
 
     cursor.execute("DELETE FROM robot_info")
     for number in range(1, robots_count + 1):
-        robot_data = (f"ChargePal{number}", f"RBS_{number}", "none", "none", "none", "none", 0.0, 0)
+        robot_data = (f"ChargePal{number}", f"RBS_{number}",0, "none", "none", "none", "none","none",0, 0.0, 0)
         cursor.execute(
-            "INSERT INTO robot_info (robot_name,robot_location, current_job, ongoing_action, previous_action, cart_on_robot,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?)",
+            "INSERT INTO robot_info (robot_name,robot_location,current_job_id,current_job, ongoing_action, previous_action, cart_on_robot,job_status,availability,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             robot_data,
         )
 
     cursor.execute("DELETE FROM cart_info")
     for number in range(1, carts_count + 1):
-        cart_data = (f"BAT_{number}", f"BWS_{number}", "none", "none", 0.0, 0)
+        cart_data = (f"BAT_{number}", f"BWS_{number}", "none", "none","none", 0)
         cursor.execute(
-            "INSERT INTO cart_info (cart_name,cart_location, robot_on_cart, plugged, cart_charge, error_count) VALUES (?,?,?,?,?,?)",
+            "INSERT INTO cart_info (cart_name,cart_location, robot_on_cart, plugged,action_state, error_count) VALUES (?,?,?,?,?,?)",
             cart_data,
         )
 
