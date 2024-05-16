@@ -63,24 +63,28 @@ class Job(SQLModel, table=True):
     cart_name: Optional[str]
     source_station: Optional[str]
     target_station: Optional[str]
+    charging_type: Optional[str]
+    port_location: Optional[str]
     start: Optional[datetime]
     end: Optional[datetime]
 
     def __eq__(self, other: "Job") -> bool:
         return (
             self.id == other.id
-            and self.type == other.id
-            and self.state == other.id
-            and self.schedule == other.id
-            and self.deadline == other.id
-            and self.booking_id == other.id
-            and self.currently_assigned == other.currently_assigned
-            and self.robot_name == other.id
-            and self.cart_name == other.id
-            and self.source_station == other.id
-            and self.target_station == other.id
-            and self.start == other.id
-            and self.end == other.id
+            and other.type == self.type
+            and other.state == self.state
+            and other.schedule == self.schedule
+            and other.deadline == self.deadline
+            and other.booking_id == self.booking_id
+            and other.currently_assigned == self.currently_assigned
+            and other.robot_name == self.robot_name
+            and other.cart_name == self.cart_name
+            and other.source_station == self.source_station
+            and other.target_station == self.target_station
+            and other.charging_type == self.charging_type
+            and other.port_location == self.port_location
+            and other.start == self.start
+            and other.end == self.end
         )
 
     def __str__(self) -> str:
@@ -90,6 +94,7 @@ class Job(SQLModel, table=True):
             f" booking_id={to_str(self.booking_id)}, assigned={to_str(self.currently_assigned)},"
             f" robot_name={to_str(self.robot_name)}, cart_name={to_str(self.cart_name)},"
             f" source_station={to_str(self.source_station)}, target_station={to_str(self.target_station)},"
+            f" charging_type={to_str(self.charging_type)}, port_location={to_str(self.port_location)},"
             f" start={to_str(self.start)}, end={to_str(self.end)})"
         )
 
@@ -102,6 +107,8 @@ class Booking(SQLModel, table=True):
     planned_BEV_location: str
     planned_plugintime_calculated: timedelta
     planned_BEV_pickup_time: datetime
+    BEV_slot_planned: str
+    BEV_port_location: str
     actual_BEV_drop_time: datetime
     actual_BEV_location: str
     actual_plugintime_calculated: timedelta
@@ -119,6 +126,8 @@ class Booking(SQLModel, table=True):
             and other.planned_plugintime_calculated
             == self.planned_plugintime_calculated
             and other.planned_BEV_pickup_time == self.planned_BEV_pickup_time
+            and other.BEV_slot_planned == self.BEV_slot_planned
+            and other.BEV_port_location == self.BEV_port_location
             and other.actual_BEV_drop_time == self.actual_BEV_drop_time
             and other.actual_BEV_location == self.actual_BEV_location
             and other.actual_plugintime_calculated == self.actual_plugintime_calculated
@@ -135,6 +144,8 @@ class Booking(SQLModel, table=True):
             f" planned_BEV_location={to_str(self.planned_BEV_location)},"
             f" planned_plugintime_calculated={to_str(self.planned_plugintime_calculated)},"
             f" planned_BEV_pickup_time={to_str(self.planned_BEV_pickup_time)},"
+            f" BEV_slot_planned={to_str(self.BEV_slot_planned)},"
+            f" BEV_port_location={to_str(self.BEV_port_location)},"
             f" actual_BEV_drop_time={to_str(self.actual_BEV_drop_time)},"
             f" actual_BEV_location={to_str(self.actual_BEV_location)},"
             f" actual_plugintime_calculated={to_str(self.actual_plugintime_calculated)},"

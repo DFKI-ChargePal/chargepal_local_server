@@ -111,7 +111,9 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
         ldb_cursor.execute(
             """SELECT
             charging_session_id,
+            bev_Port_Location,
             drop_location,
+            BEV_slot_planned,
             plugintime_calculated,
             drop_date_time,
             pick_up_date_time,
@@ -124,7 +126,9 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
         )
         for (
             charging_session_id,
+            BEV_port_location,
             drop_location,
+            BEV_slot_planned,
             plugintime_calculated,
             drop_date_time,
             pick_up_date_time,
@@ -166,6 +170,8 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                         planned_BEV_location=planned_BEV_location,
                         planned_plugintime_calculated=planned_plugintime_calculated,
                         planned_BEV_pickup_time=planned_BEV_pickup_time,
+                        BEV_slot_planned=BEV_slot_planned,
+                        BEV_port_location=BEV_port_location,
                         actual_BEV_drop_time=actual_BEV_drop_time,
                         actual_BEV_location=actual_BEV_location,
                         actual_plugintime_calculated=actual_plugintime_calculated,
@@ -183,6 +189,8 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                         planned_BEV_location=planned_BEV_location,
                         planned_plugintime_calculated=planned_plugintime_calculated,
                         planned_BEV_pickup_time=planned_BEV_pickup_time,
+                        BEV_slot_planned=BEV_slot_planned,
+                        BEV_port_location=BEV_port_location,
                         actual_BEV_drop_time=actual_BEV_drop_time,
                         actual_BEV_location=actual_BEV_location,
                         actual_plugintime_calculated=actual_plugintime_calculated,

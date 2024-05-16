@@ -31,7 +31,7 @@ def create_sample_booking(
         "CCS",
         "LeftSide-Rear",
         drop_location,
-        drop_location,
+        "AC",
         "195.87",
         "80",
         "NULL",
