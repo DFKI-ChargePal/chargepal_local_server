@@ -32,10 +32,11 @@ message Response_PullLDB {
 message Response_Job {
     string job_id = 1;
     string job_type = 2;
-    string robot_name = 3;
-    string cart = 4;
-    string source_station = 5;
-    string target_station = 6;
+    string charging_type = 3;
+    string robot_name = 4;
+    string cart = 5;
+    string source_station = 6;
+    string target_station = 7;
 }
 
 message Response_FetchJob {
@@ -73,6 +74,10 @@ message Response_Ready2PlugInADS {
 
 }
 
+message Response_BatteryCommunication{
+  bool success = 1;
+}
+
 service Communication {
   rpc UpdateRDB(Request) returns (Response_UpdateRDB);
   rpc PullLDB(Request) returns (Response_PullLDB);
@@ -83,5 +88,6 @@ service Communication {
   rpc ResetStationBlocker(Request) returns (Response_ResetStationBlocker);
   rpc OperationTime(Request) returns (Response_OperationTime);
   rpc Ready2PlugInADS(Request) returns (Response_Ready2PlugInADS);
+  rpc BatteryCommunication(Request) returns (Response_BatteryCommunication);
 
 }
