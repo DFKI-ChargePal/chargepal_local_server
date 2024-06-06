@@ -29,7 +29,7 @@ from chargepal_local_server.planner import (
 from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
 from pscedev.config import CONFIG_ALL_ONE, CONFIG_DEFAULT
-from pscedev.scenario import SCENARIO1
+from pscedev.scenario import SCENARIO2
 from pscedev import BookingEvent, Config, Event, Monitoring
 
 
@@ -93,6 +93,7 @@ class Environment:
 
     def handle_events(self, events: Iterable[Event]) -> None:
         for event in events:
+            logging.debug(event)
             if isinstance(event, BookingEvent):
                 create_sample_booking(drop_location=event.planned_BEV_location)
 
@@ -113,9 +114,10 @@ def test_recharge_self() -> None:
 
 
 def test_bring_and_recharge() -> None:
-    monitoring = Monitoring(SCENARIO1)
-    with Environment(SCENARIO1.config) as environment:
+    monitoring = Monitoring(SCENARIO2)
+    with Environment(SCENARIO2.config) as environment:
         client = environment.robot_clients["ChargePal1"]
+        cart1 = environment.planner.get_cart("BAT_1")
         # Book and let car appear.
         environment.handle_events(monitoring.get_next_events())
         # Move car to ADS_1.
@@ -142,10 +144,52 @@ def test_bring_and_recharge() -> None:
         status = monitoring.get_job_status("RECHARGE_CHARGER", job.target_station)
         assert status == "Success"
         client.update_job_monitor("RECHARGE_CHARGER", status)
-        # Check out.
+
+        # Handle next car.
+        environment.handle_events(monitoring.get_next_events())
+        environment.handle_events(monitoring.get_next_events())
+        monitoring.update_car_at_ads("ADS_1", present=False)
+        monitoring.update_car_at_ads("ADS_1")
+        environment.handle_events(monitoring.get_next_events())
+        # Bring BAT_2 to ADS_1.
+        job = environment.wait_for_job(client, JobType.BRING_CHARGER)
+        assert job.target_station == "ADS_1"
+        status = monitoring.get_job_status("BRING_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("BRING_CHARGER", status)
+        # Recharge ChargePal1.
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+        # Let BAT_2 finish charging.
+        debug_ldb.update(
+            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
+        )
+        monitoring.update_car_charged("ADS_1")
+        # Bring BAT_2 to BWS_2.
+        job = environment.wait_for_job(client, JobType.STOW_CHARGER)
+        assert job.target_station == "BWS_2"
+        status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("STOW_CHARGER", status)
+
         environment.handle_events(monitoring.get_next_events())
         assert not monitoring.exists_event()
         # Recharge ChargePal1.
+        environment.wait_for_job(client, JobType.RECHARGE_SELF)
+        client.update_job_monitor("RECHARGE_SELF", "Success")
+
+        # Exchange carts between waiting and charging stations.
+        environment.planner.handle_charger_update(cart1, ChargerCommand.STOP_RECHARGING)
+        job = environment.wait_for_job(client, JobType.STOW_CHARGER)
+        assert job.target_station == "BWS_1"
+        status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("STOW_CHARGER", status)
+        job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
+        assert job.target_station == "BCS_1"
+        status = monitoring.get_job_status("RECHARGE_CHARGER", job.target_station)
+        assert status == "Success"
+        client.update_job_monitor("RECHARGE_CHARGER", status)
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
