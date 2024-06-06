@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
 from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
     Booking,
     Cart,
@@ -86,6 +87,7 @@ class Planner:
             sum(1 for station in stations if station.station_name.startswith(prefix))
             for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
         ]
+        self.layout = Layout()
         self.active = True
         # Manage currently ready chargers, which expect their next commands.
         self.ready_chargers: Dict[str, ChargerCommand] = {}
@@ -162,26 +164,36 @@ class Planner:
         job.robot_name = robot_name
         logging.debug(f"{job} assigned to {robot_name}.")
 
-    def pop_nearest_cart(self, station_name: str, charge: float) -> Optional[Cart]:
-        """Find nearest available cart to station which can provide charge."""
-        # TODO Implement distance checks.
+    def pop_nearest_cart(self, location: str, charge: float) -> Optional[Cart]:
+        """Find nearest available cart to location which can provide charge."""
         available_carts = self.get_available_carts()
+        cart: Optional[Cart] = None
+        best_distance = float("inf")
         while available_carts:
-            cart = available_carts.pop(0)
-            if cart.cart_charge >= charge:
-                cart.available = False
-                return cart
-        return None
+            check = available_carts.pop(0)
+            if check.cart_charge >= charge:
+                distance = self.layout.get_distance(check.cart_location, location)
+                if distance < best_distance:
+                    cart = check
+                    best_distance = distance
+        if cart:
+            cart.available = False
+        return cart
 
-    def pop_nearest_robot(self, station_name: str) -> Optional[Robot]:
-        """Find nearest available robot to station."""
-        # TODO Implement distance checks.
+    def pop_nearest_robot(self, location: str) -> Optional[Robot]:
+        """Find nearest available robot to location."""
         available_robots = self.get_available_robots()
-        if available_robots:
-            robot = available_robots.pop(0)
+        robot: Optional[Robot] = None
+        best_distance = float("inf")
+        while available_robots:
+            check = available_robots.pop(0)
+            distance = self.layout.get_distance(check.robot_location, location)
+            if distance < best_distance:
+                robot = check
+                best_distance = distance
+        if robot:
             robot.available = False
-            return robot
-        return None
+        return robot
 
     def is_station_occupied(self, station_name: str) -> bool:
         """Return whether station is reserved for or used by any cart."""
@@ -190,24 +202,29 @@ class Planner:
             station_name in cart_location for cart_location in cart_locations
         )
 
-    def pop_nearest_station(self, station_name: str) -> Optional[str]:
+    def pop_nearest_station(self, location: str) -> Optional[str]:
         """
-        Find nearest available station for a charger,
+        Find nearest available station to location for a charger,
         preferably a battery charging station, else a battery waiting station.
         """
-        # TODO Handle station being a location between stations.
-        # TODO Implement distance checks.
-        nearest_station: Optional[str] = None
+        station_name: Optional[str] = None
+        best_distance = float("inf")
         for number in range(1, self.BCS_count + 1):
-            station_name = f"BCS_{number}"
-            if not self.is_station_occupied(station_name):
-                nearest_station = station_name
-        if nearest_station is None:
+            check = f"BCS_{number}"
+            if not self.is_station_occupied(check):
+                distance = self.layout.get_distance(check, location)
+                if distance < best_distance:
+                    station_name = check
+                    best_distance = distance
+        if station_name is None:
             for number in range(1, self.BWS_count + 1):
-                station_name = f"BWS_{number}"
-                if not self.is_station_occupied(station_name):
-                    nearest_station = station_name
-        return nearest_station
+                check = f"BWS_{number}"
+                if not self.is_station_occupied(check):
+                    distance = self.layout.get_distance(check, location)
+                    if distance < best_distance:
+                        station_name = check
+                        best_distance = distance
+        return station_name
 
     def update_job(self, robot_name: str, job_type: str, job_status: str) -> bool:
         self.job_requests.append(
