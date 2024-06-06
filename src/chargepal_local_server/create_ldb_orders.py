@@ -19,34 +19,34 @@ def create_sample_booking(
     now = datetime.now()
     now_str = now.isoformat(sep=" ", timespec="seconds")
     booking_data = (
-        str(booking_id),
-        "NULL",
-        "2",
-        "5YJSA7H11FFP67457",
-        "11",
-        "NULL",
-        "TYP2",
-        "250",
-        "NULL",
-        "CCS",
-        "LeftSide-Rear",
-        drop_location,
-        "AC",
-        "195.87",
-        "80",
-        "NULL",
-        now_str,
-        (now + timedelta(hours=2)).isoformat(sep=" ", timespec="seconds"),
-        "NULL",
-        now_str,
-        charging_session_status,
-        now_str,
-        "NULL",
-        "20",
-        "80",
-        "NULL",
-        now_str,
-        "NULL",
+        str(booking_id),                                                    # charging_session_id TEXT
+        "NULL",                                                             # app_id TEXT
+        "2",                                                                # customer_id TEXT
+        "5YJSA7H11FFP67457",                                                # VIN TEXT
+        "11",                                                               # bev_chargePower_kW_AC_I TEXT
+        "NULL",                                                             # bev_chargePower_kW_AC_II TEXT
+        "TYP2",                                                             # bev_charge_Port_AC TEXT
+        "250",                                                              # bev_fastcharge_power_DC_I TEXT
+        "NULL",                                                             # bev_fastcharge_power_DC_II TEXT
+        "CCS",                                                              # bev_fastcharge_port TEXT
+        "LeftSide-Rear",                                                    # bev_Port_Location TEXT
+        drop_location,                                                      # drop_location TEXT
+        "AC",                                                               # BEV_slot_planned TEXT
+        "195.87",                                                           # plugintime_calculated TEXT
+        "80",                                                               # target_soc_pct TEXT
+        "NULL",                                                             # current_BEV_slot_recond TEXT
+        now_str,                                                            # drop_date_time TEXT
+        (now + timedelta(hours=2)).isoformat(sep=" ", timespec="seconds"),  # pick_up_date_time TEXT
+        "NULL",                                                             # arrival_timestamp TEXT
+        now_str,                                                            # booking_date_time_dev TEXT
+        charging_session_status,                                            # charging_session_status TEXT
+        now_str,                                                            # last_change TEXT
+        "NULL",                                                             # immediate_charge TEXT
+        "20",                                                               # Actual_Drop_SOC TEXT
+        "80",                                                               # Actual_Target_SOC TEXT
+        "NULL",                                                             # Actual_plugintime_calculated TEXT
+        now_str,                                                            # Actual_BEV_Drop_Time TEXT
+        "NULL",                                                             # Actual_BEV_Pickup_Time TEXT
     )
 
     cursor.execute(
