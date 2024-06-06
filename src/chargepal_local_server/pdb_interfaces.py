@@ -111,6 +111,7 @@ class Booking(SQLModel, table=True):
     BEV_port_location: str
     actual_BEV_drop_time: datetime
     actual_BEV_location: str
+    actual_charge_request: float
     actual_plugintime_calculated: timedelta
     actual_BEV_pickup_time: Optional[datetime]
     completion_time: Optional[datetime]

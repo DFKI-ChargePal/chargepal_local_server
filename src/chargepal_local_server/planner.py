@@ -164,12 +164,13 @@ class Planner:
 
     def pop_nearest_cart(self, station_name: str, charge: float) -> Optional[Cart]:
         """Find nearest available cart to station which can provide charge."""
-        # TODO Implement distance and power checks.
+        # TODO Implement distance checks.
         available_carts = self.get_available_carts()
-        if available_carts:
+        while available_carts:
             cart = available_carts.pop(0)
-            cart.available = False
-            return cart
+            if cart.cart_charge >= charge:
+                cart.available = False
+                return cart
         return None
 
     def pop_nearest_robot(self, station_name: str) -> Optional[Robot]:
@@ -419,7 +420,7 @@ class Planner:
                 # Select nearest cart to prefer transporting less.
                 cart = self.pop_nearest_cart(
                     job.target_station,
-                    self.get_booking(job.booking_id).actual_plugintime_calculated,
+                    self.get_booking(job.booking_id).actual_charge_request,
                 )
                 if cart:
                     assert (

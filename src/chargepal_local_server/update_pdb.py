@@ -120,6 +120,8 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             booking_date_time_dev,
             charging_session_status,
             last_change,
+            Actual_Drop_SOC,
+            Actual_Target_SOC,
             Actual_plugintime_calculated,
             Actual_BEV_Drop_Time,
             Actual_BEV_Pickup_Time FROM orders_in;"""
@@ -135,6 +137,8 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             booking_date_time_dev,
             charging_session_status,
             last_change,
+            actual_drop_SOC,
+            actual_target_SOC,
             actual_plugintime_calculated,
             actual_BEV_drop_time,
             actual_BEV_pickup_time,
@@ -149,7 +153,8 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             )
             planned_BEV_pickup_time = parse_datetime(pick_up_date_time)
             actual_BEV_drop_time = parse_datetime(actual_BEV_drop_time)
-            actual_BEV_location = drop_location  # TODO clarify actual vs. planned
+            actual_BEV_location = drop_location
+            actual_charge_request = float(actual_target_SOC) - float(actual_drop_SOC)
             actual_plugintime_calculated = timedelta(
                 minutes=(
                     0.0
@@ -174,6 +179,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                         BEV_port_location=BEV_port_location,
                         actual_BEV_drop_time=actual_BEV_drop_time,
                         actual_BEV_location=actual_BEV_location,
+                        actual_charge_request=actual_charge_request,
                         actual_plugintime_calculated=actual_plugintime_calculated,
                         actual_BEV_pickup_time=actual_BEV_pickup_time,
                     )
@@ -193,6 +199,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                         BEV_port_location=BEV_port_location,
                         actual_BEV_drop_time=actual_BEV_drop_time,
                         actual_BEV_location=actual_BEV_location,
+                        actual_charge_request=actual_charge_request,
                         actual_plugintime_calculated=actual_plugintime_calculated,
                         actual_BEV_pickup_time=actual_BEV_pickup_time,
                         creation_time=parse_datetime(booking_date_time_dev),
