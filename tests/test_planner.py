@@ -165,9 +165,9 @@ def test_bring_and_recharge() -> None:
             f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
         )
         monitoring.update_car_charged("ADS_1")
-        # Bring BAT_2 to BWS_2.
+        # Bring BAT_2 to BWS_1.
         job = environment.wait_for_job(client, JobType.STOW_CHARGER)
-        assert job.target_station == "BWS_2"
+        assert job.target_station == "BWS_1"
         status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
         assert status == "Success"
         client.update_job_monitor("STOW_CHARGER", status)
@@ -181,7 +181,7 @@ def test_bring_and_recharge() -> None:
         # Exchange carts between waiting and charging stations.
         environment.planner.handle_charger_update(cart1, ChargerCommand.STOP_RECHARGING)
         job = environment.wait_for_job(client, JobType.STOW_CHARGER)
-        assert job.target_station == "BWS_1"
+        assert job.target_station == "BWS_2"
         status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
         assert status == "Success"
         client.update_job_monitor("STOW_CHARGER", status)

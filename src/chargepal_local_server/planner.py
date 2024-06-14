@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
 from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.free_station import search_free_station
 from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
     Booking,
@@ -92,10 +93,6 @@ class Planner:
             )
             for prefix in ("ADS_", "BCS_", "BWS_", "RBS_")
         ]
-        self.cart_wait_stations = {
-            cart.cart_name: self.get_station(f"BWS_{cart.cart_name.split('_')[-1]}")
-            for cart in carts
-        }
         self.layout = Layout()
         self.active = True
         # Manage currently ready chargers, which expect their next commands.
@@ -223,7 +220,7 @@ class Planner:
         while available_stations:
             check = available_stations.pop(0)
             if not self.is_station_occupied(check.station_name):
-                distance = self.layout.get_distance(check, location)
+                distance = self.layout.get_distance(check.station_name, location)
                 if distance < best_distance:
                     station = check
                     best_distance = distance
@@ -489,7 +486,9 @@ class Planner:
                     self.get_cart(job.cart_name).cart_location
                 )
                 if not target_station:
-                    target_station = self.cart_wait_stations[job.cart_name]
+                    target_station = self.get_station(
+                        search_free_station(robot.robot_name, "BWS_")
+                    )
                 # Note: In a real setup, there should always exist at least a BWS as target_station.
                 assert target_station, "No target station available."
                 self.assign_job(job, robot.robot_name)  # Transition J3
@@ -516,7 +515,9 @@ class Planner:
                 assert job.cart_name and job.source_station, job
                 robot = self.pop_nearest_robot(job.source_station)
                 assert robot, job
-                target_station = self.cart_wait_stations[job.cart_name]
+                target_station = self.get_station(
+                    search_free_station(robot.robot_name, "BWS_")
+                )
                 job.target_station = target_station.station_name
                 self.assign_job(job, robot.robot_name)
             elif job.type == JobType.RECHARGE_CHARGER:

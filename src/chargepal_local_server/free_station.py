@@ -1,7 +1,9 @@
 from typing import Dict, Iterable, List, Set, Tuple, Union
 from collections import defaultdict
-import sqlite3
+from chargepal_local_server.layout import Layout
+import os
 import re
+import sqlite3
 
 
 def fetch_env_count(count_name: str, cursor: sqlite3.Cursor) -> int:
@@ -28,6 +30,7 @@ def fetch_all(
     return cursor.fetchall()
 
 
+layout = Layout()
 robot_blockers: Dict[str, Dict[str, Set[str]]] = {
     prefix: defaultdict(set) for prefix in ("BCS_", "BWS_")
 }
@@ -48,7 +51,7 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
     free_station = ""
     blocked_stations: Set[str] = set()
 
-    connection = sqlite3.connect("db/ldb.db")
+    connection = sqlite3.connect(os.path.join(os.path.dirname(__file__), "db/ldb.db"))
     cursor = connection.cursor()
     # Determine station_name from current robot_location
     #  and add it to this robot's blockers.
@@ -75,16 +78,21 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
 
         # Choose the first available station that is not in the robot's blocker.
         station_count = fetch_env_count(station_prefix + "count", cursor)
+        free_station = ""
+        best_distance = float("inf")
         for station_number in range(1, station_count + 1):
             station_name = f"{station_prefix}{station_number}"
             if (
                 station_name not in blocked_stations
                 and station_name not in robot_blockers[station_prefix][robot_name]
             ):
-                free_station = station_name
-                robot_blockers[station_prefix][robot_name].add(free_station)
-                break
+                distance = layout.get_distance(station_name, robot_location)
+                if distance < best_distance:
+                    free_station = station_name
+                    best_distance = distance
 
+    if free_station:
+        robot_blockers[station_prefix][robot_name].add(free_station)
     return free_station
 
 
