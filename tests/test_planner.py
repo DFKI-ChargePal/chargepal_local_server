@@ -306,6 +306,25 @@ def test_plug_in_handshake() -> None:
         assert environment.planner.handshake_plug_in("ChargePal1")
 
 
+def test_cancel_booking() -> None:
+    with Environment(CONFIG_ALL_ONE) as environment:
+        client = environment.robot_clients["ChargePal1"]
+        create_sample_booking(drop_location="ADS_1")
+        get_status = lambda: debug_ldb.select(
+            "charging_session_status FROM orders_in",
+        )[-1][0]
+        assert get_status() == BookingState.CHECKED_IN, get_status()
+        environment.planner.tick()
+        debug_ldb.update("orders_in set charging_session_status = 'CANCELED'")
+        create_sample_booking(drop_location="ADS_1")
+        assert get_status() == BookingState.CHECKED_IN, get_status()
+        environment.wait_for_job(client, JobType.BRING_CHARGER)
+        debug_ldb.update("orders_in set charging_session_status = 'CANCELED'")
+        create_sample_booking(drop_location="ADS_1")
+        assert get_status() == BookingState.CHECKED_IN, get_status()
+        environment.wait_for_job(client, JobType.BRING_CHARGER)
+
+
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     test_recharge_self()
@@ -314,3 +333,4 @@ if __name__ == "__main__":
     test_two_twice_in_parallel()
     test_status_update()
     test_plug_in_handshake()
+    test_cancel_booking()

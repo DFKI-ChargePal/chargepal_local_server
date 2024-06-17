@@ -63,6 +63,7 @@ class JobState:
     ONGOING = "ONGOING"
     COMPLETE = "COMPLETE"
     FAILED = "FAILED"
+    CANCELED = "CANCELED"
 
 
 class PlugInState(IntEnum):
@@ -169,6 +170,26 @@ class Planner:
         job.currently_assigned = True
         job.robot_name = robot_name
         logging.debug(f"{job} assigned to {robot_name}.")
+
+    def cancel_job(self, job: Job) -> None:
+        """Cancel job and clear referenced resources."""
+        job.state = JobState.CANCELED
+        job.currently_assigned = False
+        if job.robot_name:
+            robot = self.get_robot(job.robot_name)
+            robot.current_job = None
+            robot.current_job_id = None
+            robot.available = True
+            job.robot_name = None
+            print("--", robot)
+        if job.cart_name:
+            cart = self.get_cart(job.cart_name)
+            cart.booking_id = None
+            cart.available = True
+            job.cart_name = None
+        if job.target_station:
+            station = self.get_station(job.target_station)
+            station.reservation = None
 
     def pop_nearest_cart(self, location: str, charge: float) -> Optional[Cart]:
         """Find nearest available cart to location which can provide charge."""
@@ -388,6 +409,23 @@ class Planner:
                 ).first()
                 if cart:
                     self.handle_charger_update(cart, ChargerCommand.BOOKING_FULFILLED)
+            elif BookingState.equals(
+                booking.charging_session_status, BookingState.CANCELED
+            ):
+                jobs = self.session.exec(
+                    select(Job).where(Job.booking_id == booking.id)
+                ).fetchall()
+                for job in jobs:
+                    if job.state in (JobState.OPEN, JobState.PENDING):
+                        logging.info(f"{job} canceled due to canceled booking.")
+                        self.cancel_job(job)
+                    elif job.state == JobState.ONGOING:
+                        logging.warning(
+                            f"Ongoing {job} canceled due to canceled booking."
+                        )
+                        self.cancel_job(job)
+                    else:
+                        logging.warning(f"Cannot cancel {job}.")
         return bool(updated_bookings)
 
     def confirm_charger_ready(self, robot_name: str) -> None:
