@@ -111,7 +111,7 @@ class Planner:
 
     def get_robot(self, name: str) -> Robot:
         """Return robot with name."""
-        return self.session.exec(select(Robot).where(Robot.robot_name == name)).first()
+        return self.session.exec(select(Robot).where(Robot.name == name)).first()
 
     def get_available_robots(self) -> List[Robot]:
         """Return list of available robots."""
@@ -119,7 +119,7 @@ class Planner:
 
     def get_cart(self, name: str) -> Cart:
         """Return cart with name."""
-        return self.session.exec(select(Cart).where(Cart.cart_name == name)).first()
+        return self.session.exec(select(Cart).where(Cart.name == name)).first()
 
     def get_available_carts(self) -> List[Cart]:
         """Return list of available carts."""
@@ -473,7 +473,7 @@ class Planner:
                     state=JobState.OPEN,
                     schedule=datetime.now(),
                     currently_assigned=False,
-                    cart_name=cart.cart_name,
+                    cart_name=cart.name,
                     source_station=self.get_booking(
                         cart.booking_id
                     ).actual_BEV_location,
@@ -510,8 +510,8 @@ class Planner:
                     ), f"{cart} is already used for {self.get_booking(cart.booking_id)}."
                     robot = self.pop_nearest_robot(cart.cart_location)
                     if robot:
-                        self.assign_job(job, robot.robot_name)  # Transition J1
-                        job.cart_name = cart.cart_name
+                        self.assign_job(job, robot.name)  # Transition J1
+                        job.cart_name = cart.name
                         job.source_station = cart.cart_location
                         cart.booking_id = job.booking_id
                         self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
@@ -528,50 +528,33 @@ class Planner:
                         search_free_station(robot.robot_name, "BWS_")
                     )
                 # Note: In a real setup, there should always exist at least a BWS as target_station.
-                assert target_station, "No target station available."
-                self.assign_job(job, robot.robot_name)  # Transition J3
-                if target_station.station_name.startswith("BCS_"):
-                    job.type = JobType.RECHARGE_CHARGER
-                    assert (
-                        target_station.reservation is None
-                    ), f"{target_station} is already reserved."
-                    target_station.reservation = job.cart_name
-                    job.target_station = target_station.station_name
-                elif target_station.station_name.startswith("BWS_"):
-                    job.type = JobType.STOW_CHARGER
-                    job.target_station = target_station.station_name
-                else:
-                    raise RuntimeError(f"Invalid target station {target_station}!")
-                assert (
-                    job.robot_name
-                    and job.cart_name
-                    and job.source_station
-                    and job.target_station
-                ), job
-            elif job.type == JobType.STOW_CHARGER:
-                # Handle job to recharger charger at battery waiting station.
-                assert job.cart_name and job.source_station, job
-                robot = self.pop_nearest_robot(job.source_station)
-                assert robot, job
-                target_station = self.get_station(
-                    search_free_station(robot.robot_name, "BWS_")
-                )
-                job.target_station = target_station.station_name
-                self.assign_job(job, robot.robot_name)
-            elif job.type == JobType.RECHARGE_CHARGER:
-                # Handle job to stow charger at battery charging station.
-                assert job.cart_name and job.source_station, job
-                target_station = self.pop_nearest_station(job.source_station)
                 if target_station:
-                    job.target_station = target_station.station_name
-                    robot = self.pop_nearest_robot(job.source_station)
-                    assert robot, job
-                    self.assign_job(job, robot.robot_name)
-
+                    self.assign_job(job, robot.name)  # Transition J3
+                    if target_station.startswith("BCS_"):
+                        job.type = JobType.RECHARGE_CHARGER
+                        station = self.get_station(target_station)
+                        assert (
+                            station.reservation is None
+                        ), f"{station} is already reserved."
+                        station.reservation = job.cart_name
+                        job.target_station = target_station
+                    elif target_station.startswith("BWS_"):
+                        job.type = JobType.STOW_CHARGER
+                        job.target_station = target_station
+                    else:
+                        raise RuntimeError(f"Invalid target station {target_station}!")
+                    assert (
+                        job.robot_name
+                        and job.cart_name
+                        and job.source_station
+                        and job.target_station
+                    ), job
+                else:
+                    logging.warning("Warning: No station available.")
         # Let all remaining available robots not at RBS recharge themselves.
         available_robots = self.get_available_robots()
         for robot in available_robots:
-            check_job = self.get_current_job(robot.robot_name)
+            check_job = self.get_current_job(robot.name)
             if not check_job and not robot.robot_location.startswith("RBS_"):
                 job = self.add_new_job(
                     Job(
@@ -579,8 +562,8 @@ class Planner:
                         state=JobState.PENDING,
                         schedule=datetime.now(),
                         currently_assigned=True,
-                        robot_name=robot.robot_name,
-                        target_station=f"RBS_{robot.robot_name[9:]}",
+                        robot_name=robot.name,
+                        target_station=f"RBS_{robot.name[9:]}",
                     )
                 )  # Transition J0 + J1
                 logging.debug(f"{job} created.")
@@ -593,7 +576,9 @@ class Planner:
             return self.next_jobs.pop(robot_name)
 
         return {
+            "job_id": 0,
             "job_type": "",
+            "charging_type":"",
             "robot_name": robot_name,
             "cart": "",
             "source_station": "",
@@ -606,7 +591,9 @@ class Planner:
         if job and job.state == JobState.PENDING:
             job.state = JobState.ONGOING  # Transition J2
             job_details = {
+                "job_id": job.id,
                 "job_type": job.type,
+                "charging_type":"AC",
                 "robot_name": robot_name,
                 "cart": job.cart_name,
                 "source_station": job.source_station,

@@ -34,9 +34,9 @@ def test_database_consistency() -> None:
             len(carts) == cart_count
         ), f"Cart count in pdb ({len(carts)}) does not match with ldb ({cart_count})."
         robot_names_ldb = sorted(list(robot_info[0] for robot_info in robot_infos))
-        robot_names_pdb = sorted(list(robot.robot_name for robot in robots))
+        robot_names_pdb = sorted(list(robot.name for robot in robots))
         cart_names_ldb = sorted(list(cart_info[0] for cart_info in cart_infos))
-        cart_names_pdb = sorted(list(cart.cart_name for cart in carts))
+        cart_names_pdb = sorted(list(cart.name for cart in carts))
         assert set(robot_names_pdb) == set(
             robot_names_ldb
         ), f"Robot names in pdb ({robot_names_pdb}) does not match with ldb ({robot_names_ldb})."

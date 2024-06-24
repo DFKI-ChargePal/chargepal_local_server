@@ -7,7 +7,7 @@ message Request {
   string cart_name = 4;
   string table_name = 5;
   string job_name = 6;
-  string rdb_data = 7;
+  repeated string rdbc_data = 7;
   string job_status = 8;
 }
 
@@ -18,7 +18,8 @@ message Row {
 
 message TableData {
   string table_name = 1;
-  repeated Row rows = 2;
+  repeated string column_names = 2;
+  repeated Row rows = 3;
 }
 
 message Response_UpdateRDB {
@@ -30,7 +31,7 @@ message Response_PullLDB {
 }
 
 message Response_Job {
-    string job_id = 1;
+    int32 job_id = 1;
     string job_type = 2;
     string charging_type = 3;
     string robot_name = 4;

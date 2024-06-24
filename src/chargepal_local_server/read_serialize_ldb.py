@@ -15,6 +15,11 @@ def read_serialize() -> communication_pb2.Response_UpdateRDB:
     # Iterate over tables
     for table_row in tables:
         table_name = table_row[0]
+        
+        # Get column names
+        cur_ldb.execute(f"PRAGMA table_info({table_name});")
+        columns_info = cur_ldb.fetchall()
+        column_names = [col_info[1] for col_info in columns_info]  # col_info[1] is the column name
 
         # Read data from table
         cur_ldb.execute(f"SELECT ROWID,* FROM {table_name};")
@@ -22,12 +27,15 @@ def read_serialize() -> communication_pb2.Response_UpdateRDB:
 
         # Create TableData message
         table_data = communication_pb2.TableData()
+        table_data.table_name = table_name
+        table_data.column_names.extend(column_names)
         for row in rows:
             row_msg = communication_pb2.Row()
             row_msg.row_identifier = row[0]
+
             row_msg.column_values = str(row[1:])
             table_data.rows.append(row_msg)
-        table_data.table_name = table_name
+        
 
         # Add table_data to DBData
         ldb_data.tables.append(table_data)

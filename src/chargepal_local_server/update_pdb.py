@@ -64,7 +64,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
     with Session(engine) as session:
         ldb_cursor.execute(
             """SELECT
-            robot_name,
+            name,
             robot_location,
             ongoing_action,
             previous_action,
@@ -72,7 +72,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
             error_count FROM robot_info;"""
         )
         for (
-            robot_name,
+            name,
             robot_location,
             ongoing_action,
             previous_action,
@@ -88,16 +88,16 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                     robot_charge=float(robot_charge),
                     error_count=int(error_count),
                 )
-                .where(Robot.robot_name == robot_name)
+                .where(Robot.name == name)
             )
 
         ldb_cursor.execute(
             """SELECT
-            cart_name,
+            name,
             cart_location FROM cart_info;"""
         )
         for (
-            cart_name,
+            name,
             cart_location,
         ) in ldb_cursor.fetchall():
             session.exec(
@@ -105,7 +105,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
                 .values(
                     cart_location=cart_location,
                 )
-                .where(Cart.cart_name == cart_name)
+                .where(Cart.name == name)
             )
 
         ldb_cursor.execute(

@@ -13,7 +13,7 @@ def to_str(obj: object) -> str:
 
 
 class Robot(SQLModel, table=True):
-    robot_name: str = Field(primary_key=True)
+    name: str = Field(primary_key=True)
     robot_location: str
     current_job_id: Optional[int]
     current_job: Optional[str]
@@ -27,7 +27,7 @@ class Robot(SQLModel, table=True):
 
 
 class Cart(SQLModel, table=True):
-    cart_name: str = Field(primary_key=True)
+    name: str = Field(primary_key=True)
     cart_location: str
     booking_id: Optional[int]
     plugged: Optional[str]

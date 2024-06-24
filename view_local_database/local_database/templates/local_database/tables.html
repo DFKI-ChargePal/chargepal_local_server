@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tables in {{ db_name }}</title>
+</head>
+<body>
+    <h2>Tables in {{ db_name }}:</h2>
+    <ul>
+        {% for table in tables %}
+            <li>{{ table }}</li>
+        {% endfor %}
+    </ul>
+</body>
+</html>

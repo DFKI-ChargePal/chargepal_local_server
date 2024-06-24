@@ -67,7 +67,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
 
     def PushToLDB(self, request: Request, context: Any) -> Response_PushToLDB:
         with self.request_lock:
-            status = update_ldb.update(request.table_name, request.rdb_data)
+            status = update_ldb.update(request.rdbc_data)
             response = Response_PushToLDB(success=status)
         return response
 

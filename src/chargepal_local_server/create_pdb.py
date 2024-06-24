@@ -13,7 +13,7 @@ from chargepal_local_server.pdb_interfaces import (
 
 def create_default_robot(name: str, location: str) -> Robot:
     return Robot(
-        robot_name=name,
+        name=name,
         robot_location=location,
         current_job_id=None,
         current_job=None,
@@ -29,7 +29,7 @@ def create_default_robot(name: str, location: str) -> Robot:
 
 def create_default_cart(name: str, location: str) -> Cart:
     return Cart(
-        cart_name=name,
+        name=name,
         cart_location=location,
         booking_id=None,
         plugged=None,
