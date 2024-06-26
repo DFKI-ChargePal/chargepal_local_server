@@ -119,6 +119,8 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
             
             if request_name == "wakeup":
                 success = battery_communication.wakeup(cart_name)
+            elif request_name == "mode_req_bat_only":
+                success = battery_communication.mode_req_bat_only(cart_name)
             elif request_name == "mode_req_standby":
                 success = battery_communication.mode_req_standby(cart_name)
             elif request_name == "mode_req_idle":
