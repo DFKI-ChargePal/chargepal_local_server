@@ -51,3 +51,7 @@ def ladeprozess_end(cart_name):
     #if current state is BAT_ONLY-> return true
     #else -> return false
     return True
+def mode_req_emergency_shutdown(cart_name):
+    #if current state is ANY_STATE -> proceed with request
+    #if current state is STANDBY -> return true
+    return True

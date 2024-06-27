@@ -135,6 +135,8 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
                 success = battery_communication.ladeprozess_start(cart_name)
             elif request_name == "ladeprozess_end":
                 success = battery_communication.ladeprozess_end(cart_name)
+            elif request_name == "mode_req_emergency_shutdown":
+                success = battery_communication.mode_req_emergency_shutdown(cart_name)
             
             response = Response_BatteryCommunication(success=success)
             return response
