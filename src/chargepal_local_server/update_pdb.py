@@ -19,8 +19,8 @@ from chargepal_local_server.pdb_interfaces import (
 
 
 ldb_filepath = os.path.join(os.path.dirname(__file__), "db/ldb.db")
-# Store which bookings were last fetched from pdb.
-last_bookings: Dict[int, Booking] = {}
+# Store which bookings were fetched from pdb.
+fetched_bookings: Dict[int, Booking] = {}
 
 
 def is_sql_none(string: Optional[str]) -> bool:
@@ -210,17 +210,17 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
 
 
 def fetch_updated_bookings() -> Dict[int, Booking]:
-    """Return bookings updated in pdb since last time they were fetched."""
+    """Return bookings updated in pdb which have not yet been fetched."""
     updated_bookings: Dict[int, Booking] = {}
     with Session(engine) as session:
         bookings = session.exec(select(Booking)).fetchall()
         for booking in bookings:
             booking_id = booking.id
             if (
-                booking.id not in last_bookings.keys()
-                or booking != last_bookings[booking_id]
+                booking.id not in fetched_bookings.keys()
+                or booking != fetched_bookings[booking_id]
             ):
-                last_bookings[booking_id] = booking
+                fetched_bookings[booking_id] = booking
                 updated_bookings[booking_id] = booking
     return updated_bookings
 
