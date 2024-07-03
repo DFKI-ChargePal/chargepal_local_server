@@ -14,9 +14,7 @@ def fetch_env_count(count_name: str, cursor: sqlite3.Cursor) -> int:
 
 def fetch_robot_location(robot_name: str, cursor: sqlite3.Cursor) -> str:
     """Return robot location for robot_name from robot_info of ldb."""
-    cursor.execute(
-        f"SELECT robot_location FROM robot_info WHERE name = '{robot_name}'"
-    )
+    cursor.execute(f"SELECT robot_location FROM robot_info WHERE name = '{robot_name}'")
     return str(cursor.fetchone()[0])
 
 

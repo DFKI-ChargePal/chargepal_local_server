@@ -39,32 +39,6 @@ ALL_BOOKING_HEADERS = (
     "Actual_BEV_Drop_Time",
     "Actual_BEV_Pickup_Time",
 )
-BOOKING_INFO_HEADERS = (  # Note: These are used by planning.
-    "charging_session_id",
-    "drop_location",
-    "plugintime_calculated",
-    "drop_date_time",
-    "pick_up_date_time",
-    "charging_session_status",
-    "last_change",
-)
-ROBOT_INFO_HEADERS = (
-    "name",
-    "robot_location",
-    "current_job",
-    "ongoing_action",
-    "previous_action",
-    "cart_on_robot",
-    "robot_charge",
-    "error_count",
-)
-CART_INFO_HEADERS = (
-    "name",
-    "cart_location",
-    "robot_on_cart",
-    "plugged",
-    "error_count",
-)
 
 
 def datetime_str(
