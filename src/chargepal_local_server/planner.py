@@ -424,7 +424,7 @@ class Planner:
                             f"Ongoing {job} canceled due to canceled booking."
                         )
                         self.cancel_job(job)
-                    else:
+                    elif job.state != JobState.CANCELED:
                         logging.warning(f"Cannot cancel {job}.")
         return bool(updated_bookings)
 
