@@ -1,4 +1,4 @@
-from typing import Dict, Iterable, List, Set, Tuple, Union
+from typing import Dict, Iterable, Optional, List, Set, Tuple, Union
 from collections import defaultdict
 from chargepal_local_server.layout import Layout
 import os
@@ -20,7 +20,7 @@ def fetch_robot_location(robot_name: str, cursor: sqlite3.Cursor) -> str:
 
 def fetch_all(
     columns_str: Union[str, Iterable[str]], table: str, cursor: sqlite3.Cursor
-) -> List[Tuple[str, ...]]:
+) -> List[Tuple[object, ...]]:
     """Return all entries for columns_str from table of ldb."""
     if not isinstance(columns_str, str):
         columns_str = ", ".join(columns_str)
@@ -61,17 +61,21 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
 
     with connection:
         # Fetch all stations blocked by robots.
-        robot_column_values = fetch_all(robot_columns, "robot_info", cursor)
+        robot_column_values: List[Tuple[str, Optional[str]]] = fetch_all(
+            robot_columns, "robot_info", cursor
+        )
         for each_row in robot_column_values:
             for value in each_row:
-                if station_prefix in value:
+                if value and station_prefix in value:
                     blocked_stations.add(get_station_name(value, station_prefix))
 
         # Fetch all stations blocked by carts.
-        cart_column_values = fetch_all("cart_location", "cart_info", cursor)
+        cart_column_values: List[Tuple[str, Optional[str]]] = fetch_all(
+            "cart_location", "cart_info", cursor
+        )
         for each_row in cart_column_values:
             for value in each_row:
-                if station_prefix in value:
+                if value and station_prefix in value:
                     blocked_stations.add(get_station_name(value, station_prefix))
 
         # Choose the first available station that is not in the robot's blocker.
