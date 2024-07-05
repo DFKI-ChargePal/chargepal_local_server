@@ -23,7 +23,7 @@ def main(robots_count: int = 1, carts_count: int = 1):
             previous_action TEXT,
             cart_on_robot TEXT,
             job_status TEXT,
-            availability INTEGER,
+            availability BOOLEAN,
             robot_charge FLOAT,
             error_count INTEGER
         )
