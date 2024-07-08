@@ -113,30 +113,27 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def BatteryCommunication(self, request: Request, context: Any
     ) -> Response_BatteryCommunication:
         with self.request_lock:
-            request_name = request.request_name
             success = False
-            cart_name = request.cart_name
-            
-            if request_name == "wakeup":
-                success = battery_communication.wakeup(cart_name)
-            elif request_name == "mode_req_bat_only":
-                success = battery_communication.mode_req_bat_only(cart_name)
-            elif request_name == "mode_req_standby":
-                success = battery_communication.mode_req_standby(cart_name)
-            elif request_name == "mode_req_idle":
-                success = battery_communication.mode_req_idle(cart_name)
-            elif request_name == "mode_req_EV_AC_Charge":
-                success = battery_communication.mode_req_EV_AC_Charge(cart_name)
-            elif request_name == "mode_req_EV_DC_Charge":
-                success = battery_communication.mode_req_EV_DC_Charge(cart_name)
-            elif request_name == "mode_req_Bat_AC_Charge":
-                success = battery_communication.mode_req_Bat_AC_Charge(cart_name)
-            elif request_name == "ladeprozess_start":
-                success = battery_communication.ladeprozess_start(cart_name)
-            elif request_name == "ladeprozess_end":
-                success = battery_communication.ladeprozess_end(cart_name)
-            elif request_name == "mode_req_emergency_shutdown":
-                success = battery_communication.mode_req_emergency_shutdown(cart_name)
+            if request.request_name == "wakeup":
+                success = battery_communication.wakeup(request.cart_name)
+            elif request.request_name == "mode_req_bat_only":
+                success = battery_communication.mode_req_bat_only(request.cart_name)
+            elif request.request_name == "mode_req_standby":
+                success = battery_communication.mode_req_standby(request.cart_name)
+            elif request.request_name == "mode_req_idle":
+                success = battery_communication.mode_req_idle(request.cart_name)
+            elif request.request_name == "mode_req_EV_AC_Charge":
+                success = battery_communication.mode_req_EV_AC_Charge(request.cart_name)
+            elif request.request_name == "mode_req_EV_DC_Charge":
+                success = battery_communication.mode_req_EV_DC_Charge(request.cart_name)
+            elif request.request_name == "mode_req_Bat_AC_Charge":
+                success = battery_communication.mode_req_Bat_AC_Charge(request.cart_name)
+            elif "ladeprozess_start" in request.request_name:
+                success = battery_communication.ladeprozess_start(request.cart_name,request.station_name,request.request_name[len("ladeprozess_start_"):])
+            elif "ladeprozess_end" in request.request_name:
+                success = battery_communication.ladeprozess_end(request.cart_name,request.station_name)
+            elif request.request_name == "mode_req_emergency_shutdown":
+                success = battery_communication.mode_req_emergency_shutdown(request.cart_name)
             
             response = Response_BatteryCommunication(success=success)
             return response
