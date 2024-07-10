@@ -222,11 +222,11 @@ class DatabaseAccess:
         """Update charging_session_status for charging_session_id in lsv_db."""
         sql_status_operation = (
             f"UPDATE orders_in SET charging_session_status = '{charging_session_status}'"
-            f" WHERE charging_session_id = {charging_session_id};"
+            f" WHERE charging_session_id = '{charging_session_id}';"
         )
         sql_change_operation = (
             f"UPDATE orders_in SET last_change = '{datetime_str()}'"
-            f" WHERE charging_session_id = {charging_session_id};"
+            f" WHERE charging_session_id = '{charging_session_id}';"
         )
         try:
             with MySQLAccess() as cursor:
@@ -236,6 +236,28 @@ class DatabaseAccess:
             with SQLite3Access(self.ldb_filepath) as cursor:
                 cursor.execute(sql_status_operation)
                 cursor.execute(sql_change_operation)
+
+    def update_battery(
+        self,
+        battery_id: str,
+        state: Optional[str] = None,
+        flag: Optional[str] = None,
+        mode_bat_only: Optional[bool] = None,
+    ) -> None:
+        """Update State_bat_mod, Flag_Modus, Mode_Bat_only for Battry_ID in lsv_db."""
+        sql_operation = f"UPDATE Battry_ID SET last_change = '{datetime_str()}'"
+        if state:
+            sql_operation += f", State_bat_mod = '{state}'"
+        if flag:
+            sql_operation += f", Flag_Modus = '{flag}'"
+        if mode_bat_only:
+            sql_operation += f", Mode_Bat_only = '{mode_bat_only}'"
+        sql_operation += f" WHERE Battry_ID = '{battery_id}'"
+        try:
+            with MySQLAccess() as cursor:
+                cursor.execute(sql_operation)
+        except mysql.connector.errors.Error:
+            print(f"Error: No MySQL database found to update battery!")
 
 
 if __name__ == "__main__":
