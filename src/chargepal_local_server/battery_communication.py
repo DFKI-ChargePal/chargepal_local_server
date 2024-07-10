@@ -94,7 +94,7 @@ def wakeup(cart_name: str) -> bool:
     mode_bat_only = read_data("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only")
     success = False
     # if current state is STANDBY -> proceed with request
-    if "standby" in state_battery_mode and "error" not in state_battery_mode:
+    if "batok" in state_battery_mode and "error" not in state_battery_mode and mode_bat_only==0:
         publish_message(cart_name, message_wakeup)
         if check_feedback(cart_name, "WakeUp_OK"):
             success = monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1)
