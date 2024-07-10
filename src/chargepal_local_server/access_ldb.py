@@ -2,6 +2,7 @@
 from typing import Dict, Iterable, List, Optional, Type
 from types import TracebackType
 from datetime import datetime, timedelta
+from chargepal_local_server.pdb_interfaces import to_str
 import mysql.connector
 import mysql.connector.cursor
 import os
@@ -237,17 +238,18 @@ class DatabaseAccess:
                 cursor.execute(sql_status_operation)
                 cursor.execute(sql_change_operation)
 
-    def update_battery(self, table: str, battery_id: str, **kwargs: str) -> None:
+    def update_battery(self, table: str, battery_id: str, **kwargs: object) -> None:
         """Update table for Battry_ID in lsv_db as well as automatically update column 'last_change'."""
         sql_operation = f"UPDATE {table} SET last_change = '{datetime_str()}'"
         for key, value in kwargs.items():
-            sql_operation += f", {key} = '{value}'"
+            sql_operation += f", {key} = {to_str(value)}"
         sql_operation += f" WHERE Battry_ID = '{battery_id}';"
+        print(sql_operation)
         try:
             with MySQLAccess() as cursor:
                 cursor.execute(sql_operation)
-        except mysql.connector.errors.Error:
-            print(f"Error: No MySQL database found to update battery!")
+        except mysql.connector.errors.Error as e:
+            print(e)
 
 
 if __name__ == "__main__":
