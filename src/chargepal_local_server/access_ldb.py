@@ -237,22 +237,12 @@ class DatabaseAccess:
                 cursor.execute(sql_status_operation)
                 cursor.execute(sql_change_operation)
 
-    def update_battery(
-        self,
-        battery_id: str,
-        state: Optional[str] = None,
-        flag: Optional[str] = None,
-        mode_bat_only: Optional[bool] = None,
-    ) -> None:
-        """Update State_bat_mod, Flag_Modus, Mode_Bat_only for Battry_ID in lsv_db."""
-        sql_operation = f"UPDATE Battry_ID SET last_change = '{datetime_str()}'"
-        if state:
-            sql_operation += f", State_bat_mod = '{state}'"
-        if flag:
-            sql_operation += f", Flag_Modus = '{flag}'"
-        if mode_bat_only:
-            sql_operation += f", Mode_Bat_only = '{mode_bat_only}'"
-        sql_operation += f" WHERE Battry_ID = '{battery_id}'"
+    def update_battery(self, table: str, battery_id: str, **kwargs: str) -> None:
+        """Update table for Battry_ID in lsv_db as well as automatically update column 'last_change'."""
+        sql_operation = f"UPDATE {table} SET last_change = '{datetime_str()}'"
+        for key, value in kwargs.items():
+            sql_operation += f", {key} = '{value}'"
+        sql_operation += f" WHERE Battry_ID = '{battery_id}';"
         try:
             with MySQLAccess() as cursor:
                 cursor.execute(sql_operation)
