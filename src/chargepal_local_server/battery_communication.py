@@ -1,10 +1,41 @@
+from typing import Dict, Optional, Union
+from datetime import datetime
+import mysql.connector
 import paho.mqtt.client as mqtt
 from chargepal_local_server.access_ldb import MySQLAccess
-from datetime import datetime
-from typing import Union
 
 feedback_receive_timeout = 60
 battery_live_monitor_timeout = 180
+
+
+class UpdateManager:
+    def __init__(self, battery_ids: Dict[str, str]) -> None:
+        assert len(set(battery_ids.keys())) == len(set(battery_ids.values()))
+        self.battery_names = {
+            battery_id: cart_name for cart_name, battery_id in battery_ids.items()
+        }
+        self.battery_states: Dict[str, Optional[str]] = {
+            cart_name: None for cart_name in battery_ids.keys()
+        }
+        self.last_time = datetime.min
+
+    def tick(self) -> Dict[str, str]:
+        """
+        Return from CAN_MSG_RX_LIVE in lsv_db a dict of cart_names and battery states
+        for which last_change is greater than last time.
+        """
+        sql_operation = f"SELECT Battry_ID, State_bat_mod FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
+        self.last_time = datetime.now()
+        updated_states: Dict[str, str] = {}
+        try:
+            with MySQLAccess() as cursor:
+                cursor.execute(sql_operation)
+                for battery_id, state in cursor.fetchall():
+                    updated_states[self.battery_names[battery_id]] = state
+        except mysql.connector.errors.Error:
+            pass
+        self.battery_states.update(updated_states)
+        return updated_states
 
 
 def publish_message(cart_name: str, message: str):

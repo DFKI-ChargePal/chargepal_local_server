@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
 from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.battery_communication import UpdateManager
 from chargepal_local_server.free_station import search_free_station
 from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
@@ -82,6 +83,9 @@ class Planner:
     def __init__(self, ldb_filepath: Optional[str] = None) -> None:
         self.access = DatabaseAccess(ldb_filepath)
         self.session = Session(engine)
+        self.battery_manager = UpdateManager(
+            {f"BAT_{number}": f"Battery_DUS_{number:02d}" for number in range(1, 7)}
+        )
         self.robot_count = len(self.session.exec(select(Robot)).fetchall())
         carts = self.session.exec(select(Cart)).fetchall()
         self.cart_count = len(carts)
@@ -652,6 +656,7 @@ class Planner:
         """Execute planning methods once."""
         self.bookings_updated = False
         copy_from_ldb()
+        self.battery_manager.tick()
         self.bookings_updated = self.handle_updated_bookings()
         self.schedule_jobs()
         self.handle_job_requests()
