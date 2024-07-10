@@ -24,7 +24,7 @@ class UpdateManager:
         Return from CAN_MSG_RX_LIVE in lsv_db a dict of cart_names and battery states
         for which last_change is greater than last time.
         """
-        sql_operation = f"SELECT Battry_ID, State_bat_mod FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
+        sql_operation = f"SELECT Battry_ID, State_bat_mod_ERROR FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
         self.last_time = datetime.now()
         updated_states: Dict[str, str] = {}
         try:
@@ -88,24 +88,22 @@ def monitor_result(
 
 def wakeup(cart_name: str) -> bool:
     message_wakeup = "1793,2,1,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data(
+        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR_ERROR"
+    )
     mode_bat_only = read_data("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only")
     success = False
-    # if current state is STANDBY -> proceed with request
-    if "batok" in state_battery_mode and "error" not in state_battery_mode and mode_bat_only==0:
-        publish_message(cart_name, message_wakeup)
-        if check_feedback(cart_name, "WakeUp_OK"):
-            success = monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1)
 
     # if current state is BAT_ONLY -> return true
-    elif (
-        "batok" in state_battery_mode
-        and "error" not in state_battery_mode
-        and mode_bat_only == 1
-    ):
+    if battery_error_mode != 1 and mode_bat_only == 1:
         success = True
+
+    # if current state is STANDBY -> proceed with request
+    elif battery_error_mode != 1 and mode_bat_only == 0:
+        publish_message(cart_name, message_wakeup)
+        if monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     return success
 
@@ -119,24 +117,22 @@ def mode_req_bat_only(cart_name: str) -> bool:
 
 def mode_req_standby(cart_name: str) -> bool:
     message_mode_req_standby = "1793,2,16,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
+    feedback = read_data(
+        "TX_ChargeOrdersFeedback", cart_name, "Bat_State_actual"
     ).lower()
     mode_bat_only = read_data("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only")
     success = False
     # if current state is STANDBY -> return true
-    if (
-        "standby" in state_battery_mode and "error" not in state_battery_mode
-    ):  ##verify how to know if standby is reached?
+    if battery_error_mode != 1 and "standby_ok" in feedback:
         success = True
 
     # if current state is BAT_ONLY -> proceed with request
-    elif "error" not in state_battery_mode and mode_bat_only == 1:
+    elif battery_error_mode != 1 and mode_bat_only == 1:
         publish_message(cart_name, message_mode_req_standby)
-        if check_feedback(cart_name, "Standby_OK"):
-            success = monitor_result(
-                "CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1
-            )  ##verify how to know if standby is reached?
+        if monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 0):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # else -> return false
     return success
@@ -144,23 +140,20 @@ def mode_req_standby(cart_name: str) -> bool:
 
 def mode_req_idle(cart_name: str) -> bool:
     message_mode_req_idle = "1793,2,32,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
     mode_bat_only = read_data("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only")
     success = False
     # if current state is IDLE -> return true
-    if "batok" in state_battery_mode and "flag_idle" in flg_modus:
+    if battery_error_mode != 1 and "flag_idle" in flg_modus:
         success = True
 
     # if current state is BAT_ONLY -> proceed with request
-    elif "error" not in state_battery_mode and mode_bat_only == 1:
+    elif battery_error_mode != 1 and mode_bat_only == 1:
         publish_message(cart_name, message_mode_req_idle)
-        if check_feedback(cart_name, "Mode_request_idle_OK"):
-            success = monitor_result(
-                "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_idle"
-            )
+        if monitor_result("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_idle"):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # else -> return false
     return success
@@ -168,23 +161,23 @@ def mode_req_idle(cart_name: str) -> bool:
 
 def mode_req_EV_AC_Charge(cart_name: str) -> bool:
     message_mode_req_EV_AC_Charge = "1793,2,4,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
     success = False
 
     # if current state is EV_AC_Charge -> return true
-    if "error" not in state_battery_mode and "flag_ev_ac_charge" in flg_modus:
+    if battery_error_mode != 1 and "flag_ev_ac_charge" in flg_modus:
         success = True
 
     # if current state is IDLE -> proceed with request
-    elif "error" not in state_battery_mode and "flag_idle" in flg_modus:
+    elif battery_error_mode != 1 and "flag_idle" in flg_modus:
         publish_message(cart_name, message_mode_req_EV_AC_Charge)
-        if check_feedback(cart_name, "EV_Ac_Charge_OK"):
-            success = monitor_result(
-                "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_AC_Charge"
-            )
+
+        if monitor_result(
+            "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_AC_Charge"
+        ):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # else -> return false
     return success
@@ -192,23 +185,23 @@ def mode_req_EV_AC_Charge(cart_name: str) -> bool:
 
 def mode_req_EV_DC_Charge(cart_name: str) -> bool:
     message_mode_req_EV_DC_Charge = "1793,2,2,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
     success = False
 
     # if current state is EV_DC_Charge -> return true
-    if "error" not in state_battery_mode and "flag_ev_dc_charge" in flg_modus:
+    if battery_error_mode != 1 and "flag_ev_dc_charge" in flg_modus:
         success = True
 
     # if current state is IDLE -> proceed with request
-    elif "error" not in state_battery_mode and "flag_idle" in flg_modus:
+    elif battery_error_mode != 1 and "flag_idle" in flg_modus:
         publish_message(cart_name, message_mode_req_EV_DC_Charge)
-        if check_feedback(cart_name, "EV_Dc_Charge_OK"):
-            success = monitor_result(
-                "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_DC_Charge"
-            )
+
+        if monitor_result(
+            "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_DC_Charge"
+        ):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # else -> return false
     return success
@@ -216,22 +209,22 @@ def mode_req_EV_DC_Charge(cart_name: str) -> bool:
 
 def mode_req_Bat_AC_Charge(cart_name: str) -> bool:
     message_mode_req_Bat_AC_Charge = "1793,2,8,0"
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
     success = False
     # if current state is Bat_AC_Charge -> return true
-    if "error" not in state_battery_mode and "flag_bat_ac_charge" in flg_modus:
+    if battery_error_mode != 1 and "flag_bat_ac_charge" in flg_modus:
         success = True
 
     # if current state is IDLE -> proceed with request
-    elif "error" not in state_battery_mode and "flag_idle" in flg_modus:
+    elif battery_error_mode != 1 and "flag_idle" in flg_modus:
         publish_message(cart_name, message_mode_req_Bat_AC_Charge)
-        if check_feedback(cart_name, "Bat_Ac_Charge_OK"):
-            success = monitor_result(
-                "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_Bat_AC_Charge"
-            )
+
+        if monitor_result(
+            "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_Bat_AC_Charge"
+        ):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # else -> return false
     return success
@@ -239,41 +232,45 @@ def mode_req_Bat_AC_Charge(cart_name: str) -> bool:
 
 def ladeprozess_start(cart_name: str, station_name: str, charging_type: str) -> bool:
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
-    state_battery_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod"
-    ).lower()
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
     success = False
     if (
         "flag_ev_ac_charge" in flg_modus
         or "flag_ev_dc_charge" in flg_modus
         or "flag_bat_ac_charge" in flg_modus
-        and "enable" in state_battery_mode
+        and battery_error_mode != 1
     ):
         if "flag_ev_dc_charge" not in flg_modus:
             message_unlock_request = (
                 "1793,2,64,0"  # not when EV_DC_Charge Ladeprozess Start
             )
             publish_message(cart_name, message_unlock_request)
-            if check_feedback(cart_name, "Unlock_request_OK"):
-                if not monitor_plug_unlock(cart_name, station_name):
-                    return success
+
+            if not monitor_plug_unlock(cart_name, station_name):
+                return success
 
         message_plug_process_finished = "1793,2,0,1"
         publish_message(cart_name, message_plug_process_finished)
-        if check_feedback(cart_name, "PlugProcessFinished_Received"):
-            if "BCS" in station_name:
-                success = monitor_result(
-                    "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_Bat_AC_Charge"
-                )
-            elif "ADS" in station_name:
-                if charging_type.lower() == "ac":
-                    success = monitor_result(
-                        "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_AC_Charge"
-                    )
-                else:
-                    success = monitor_result(
-                        "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_DC_Charge"
-                    )
+
+        if "BCS" in station_name:
+            if not monitor_result(
+                "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_Bat_AC_Charge"
+            ):
+                return success
+        elif "ADS" in station_name:
+            if charging_type.lower() == "ac":
+                if not monitor_result(
+                    "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_AC_Charge"
+                ):
+                    return success
+            else:
+                if not monitor_result(
+                    "CAN_MSG_RX_LIVE", cart_name, "Flag_Modus", "Flag_EV_DC_Charge"
+                ):
+                    return success
+
+        if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+            success = True
 
     return success
 
@@ -287,9 +284,17 @@ def monitor_plug_unlock(cart_name: str, station_name: str) -> bool:
         )
 
 
+def read_plug_unlock(cart_name: str, station_name: str) -> bool:
+    if "ADS" in station_name:
+        return read_data("CAN_MSG_RX_LIVE", cart_name, "AC_Car_inlet_UNLOCKED")
+    elif "BCS" in station_name:
+        return read_data("CAN_MSG_RX_LIVE", cart_name, "AC_Charger_inlet_UNLOCKED")
+
+
 def ladeprozess_end(cart_name: str, station_name: str, charging_type: str) -> bool:
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
-    unlock_state = monitor_plug_unlock(cart_name, station_name)
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
+    unlock_state = read_plug_unlock(cart_name, station_name)
     success = False
 
     # if current state is EV_AC_Charge / EV_DC_Charge / Bat_AC_Charge Ladeprozess-> proceed with request
@@ -297,20 +302,21 @@ def ladeprozess_end(cart_name: str, station_name: str, charging_type: str) -> bo
         "flag_ev_ac_charge" in flg_modus
         or "flag_ev_dc_charge" in flg_modus
         or "flag_bat_ac_charge" in flg_modus
+        and battery_error_mode != 1
     ):
-        if not unlock_state:
+        if unlock_state != 1:
             message_mode_req_idle = "1793,2,32,0"
             publish_message(cart_name, message_mode_req_idle)
-            if check_feedback(cart_name, "Mode_request_idle_OK"):
-                if not monitor_plug_unlock(cart_name, station_name):
-                    return success
-            else:
+
+            if not monitor_plug_unlock(cart_name, station_name):
                 return success
 
         message_plug_process_finished = "1793,2,0,1"
         publish_message(cart_name, message_plug_process_finished)
-        if check_feedback(cart_name, "PlugProcessFinished_Received"):
-            success = monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1)
+
+        if monitor_result("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only", 1):
+            if read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR") != 1:
+                success = True
 
     # if current state is BAT_ONLY-> return true
     # else -> return false
@@ -318,7 +324,17 @@ def ladeprozess_end(cart_name: str, station_name: str, charging_type: str) -> bo
 
 
 def mode_req_emergency_shutdown(cart_name):
-    message = "1793,2,0,2"
+    battery_error_mode = read_data("CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR")
+
+    feedback = read_data(
+        "TX_ChargeOrdersFeedback", cart_name, "Bat_State_actual"
+    ).lower()
+    success = False
+    if feedback != "standby_ok" and battery_error_mode != 1:
+        message_emergency_stop = "1793,2,0,2"
+        publish_message(cart_name, message_emergency_stop)
+        success = True
+
     # if current state is ANY_STATE -> proceed with request
     # if current state is STANDBY -> return true
-    return True
+    return success
