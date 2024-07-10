@@ -94,9 +94,7 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
             response = Response_UpdateJobMonitor(success=self.job_success_status)
         return response
 
-    def OperationTime(
-        self, request: Request, context: Any
-    ) -> Response_OperationTime:
+    def OperationTime(self, request: Request, context: Any) -> Response_OperationTime:
         with self.request_lock:
             requested_cart = request.cart_name
             status = True  # ToDo: Calculate the time left for the cart to finish charging job
@@ -110,7 +108,9 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
             ready_to_plugin = self.planner.handshake_plug_in(request.robot_name)
             response = Response_Ready2PlugInADS(ready_to_plugin)
         return response
-    def BatteryCommunication(self, request: Request, context: Any
+
+    def BatteryCommunication(
+        self, request: Request, context: Any
     ) -> Response_BatteryCommunication:
         with self.request_lock:
             success = False
@@ -127,16 +127,27 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
             elif request.request_name == "mode_req_EV_DC_Charge":
                 success = battery_communication.mode_req_EV_DC_Charge(request.cart_name)
             elif request.request_name == "mode_req_Bat_AC_Charge":
-                success = battery_communication.mode_req_Bat_AC_Charge(request.cart_name)
+                success = battery_communication.mode_req_Bat_AC_Charge(
+                    request.cart_name
+                )
             elif "ladeprozess_start" in request.request_name:
-                success = battery_communication.ladeprozess_start(request.cart_name,request.station_name,request.request_name[len("ladeprozess_start_"):])
+                success = battery_communication.ladeprozess_start(
+                    request.cart_name,
+                    request.station_name,
+                    request.request_name[len("ladeprozess_start_") :],
+                )
             elif "ladeprozess_end" in request.request_name:
-                success = battery_communication.ladeprozess_end(request.cart_name,request.station_name)
+                success = battery_communication.ladeprozess_end(
+                    request.cart_name, request.station_name
+                )
             elif request.request_name == "mode_req_emergency_shutdown":
-                success = battery_communication.mode_req_emergency_shutdown(request.cart_name)
-            
+                success = battery_communication.mode_req_emergency_shutdown(
+                    request.cart_name
+                )
+
             response = Response_BatteryCommunication(success=success)
             return response
+
 
 def server() -> None:
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

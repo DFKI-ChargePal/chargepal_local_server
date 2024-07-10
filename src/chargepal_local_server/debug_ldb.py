@@ -109,9 +109,7 @@ def update_locations(
     """
     for name, location in locations_by_names.items():
         if name.startswith(cart_prefix):
-            update(
-                f"cart_info SET cart_location = '{location}' WHERE name = '{name}'"
-            )
+            update(f"cart_info SET cart_location = '{location}' WHERE name = '{name}'")
         else:
             update(
                 f"robot_info SET robot_location = '{location}' WHERE name = '{name}'"
