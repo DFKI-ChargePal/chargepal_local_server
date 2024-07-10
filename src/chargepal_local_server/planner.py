@@ -487,6 +487,20 @@ class Planner:
             cart.booking_id = None  # Transition B2
         self.session.commit()
 
+    def handle_updated_battery_states(
+        self, updated_battery_states: Dict[str, str]
+    ) -> None:
+        for cart_name, state in updated_battery_states.items():
+            cart = self.get_cart(cart_name)
+            if "_charging" in state.lower():
+                self.handle_charger_update(cart, ChargerCommand.START_CHARGING)
+            elif "_recharging" in state.lower():
+                self.handle_charger_update(cart, ChargerCommand.START_RECHARGING)
+            elif "_charging" in self.battery_manager.battery_states[cart_name]:
+                self.handle_charger_update(cart, ChargerCommand.RETRIEVE_CHARGER)
+            elif "_recharging" in self.battery_manager.battery_states[cart_name]:
+                self.handle_charger_update(cart, ChargerCommand.STOP_RECHARGING)
+
     def schedule_jobs(self) -> None:
         """Schedule open and due jobs for available robots."""
         for job in self.session.exec(
@@ -656,8 +670,9 @@ class Planner:
         """Execute planning methods once."""
         self.bookings_updated = False
         copy_from_ldb()
-        self.battery_manager.tick()
         self.bookings_updated = self.handle_updated_bookings()
+        updated_battery_states = self.battery_manager.tick()
+        self.handle_updated_battery_states(updated_battery_states)
         self.schedule_jobs()
         self.handle_job_requests()
         self.session.commit()
