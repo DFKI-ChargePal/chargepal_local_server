@@ -210,7 +210,7 @@ def monitor_plug_unlock(cart_name:str,station_name:str)->bool:
 
 def ladeprozess_end(cart_name:str,station_name:str,charging_type:str)->bool:
     flg_modus = read_data("CAN_MSG_RX_LIVE", cart_name, "Flag_Modus").lower()
-    unlock_state = monitor_plug_unlock(cart_name,sation_name)
+    unlock_state = monitor_plug_unlock(cart_name,station_name)
     success = False
 
     # if current state is EV_AC_Charge / EV_DC_Charge / Bat_AC_Charge Ladeprozess-> proceed with request
