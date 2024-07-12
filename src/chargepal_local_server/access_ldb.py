@@ -109,9 +109,8 @@ class SQLite3Access:
 class MySQLAccess:
     def __init__(self) -> None:
         self.connection = mysql.connector.connect(
+            read_default_file=os.path.expanduser("~/.my.cnf"),
             host="localhost",
-            user="ChargePal",
-            password="ChargePal3002!",
             database="LSV0002_DB",
         )
         self.cursor = self.connection.cursor()
