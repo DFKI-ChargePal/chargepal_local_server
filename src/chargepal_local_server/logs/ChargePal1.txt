@@ -1,0 +1,41 @@
+2024-07-17 18:36:32.238 Received job : {"job_id":1,"job_type":"BRING_CHARGER","charging_type":"AC","robot_name":"ChargePal1","cart":"BAT_1","source_station":"BWS_1","target_station":"ADS_1"}
+2024-07-17 18:36:33 - Pushing data to LDB successful
+2024-07-17 18:36:33 - Pushing data to LDB successful
+2024-07-17 18:36:34 - Pushing data to LDB successful
+2024-07-17 18:36:34.230 Performing einschalten of BAT_1
+2024-07-17 18:36:34 - Requested wakeup for Battery_DUS_01.
+2024-07-17 18:36:40 - Pushing data to LDB successful
+2024-07-17 18:36:41.229 Performing arrive_at_station_BWS_1_pick
+2024-07-17 18:36:50 - Pushing data to LDB successful
+2024-07-17 18:37:04 - Pushing data to LDB successful
+2024-07-17 18:37:05.087 Failure einschalten of BAT_1
+2024-07-17 18:38:12 - Pushing data to LDB successful
+2024-07-17 18:38:16.968 Performing einschalten of BAT_1
+2024-07-17 18:38:24 - Pushing data to LDB successful
+2024-07-17 18:38:26.685 Failure einschalten of BAT_1
+2024-07-17 18:39:33 - Pushing data to LDB successful
+2024-07-17 18:39:34.551 Performing einschalten of BAT_1
+2024-07-17 18:39:40 - Pushing data to LDB successful
+2024-07-17 18:39:40.816 Failure einschalten of BAT_1
+2024-07-17 18:40:47 - Pushing data to LDB successful
+2024-07-17 18:40:50.235 Performing einschalten of BAT_1
+2024-07-17 18:40:54 - Pushing data to LDB successful
+2024-07-17 18:40:54.972 Failure einschalten of BAT_1
+2024-07-17 18:42:01 - Pushing data to LDB successful
+2024-07-17 18:42:03.271 Performing einschalten of BAT_1
+2024-07-17 18:42:07 - Pushing data to LDB successful
+2024-07-17 18:42:09.774 Failure einschalten of BAT_1
+2024-07-17 18:43:23 - Pushing data to LDB successful
+2024-07-17 18:43:25.115 Performing arrive_at_home to RBS_1
+2024-07-17 18:43:33 - Pushing data to LDB successful
+2024-07-17 18:43:52 - Pushing data to LDB successful
+2024-07-17 18:43:53.600 Performing pickup_cart of BAT_1
+2024-07-17 18:44:04 - Pushing data to LDB successful
+2024-07-17 18:44:18 - Pushing data to LDB successful
+2024-07-17 18:44:23.888 Performing arrive_at_station_ADS_1
+2024-07-17 18:44:32 - Pushing data to LDB successful
+2024-07-17 18:44:46 - Pushing data to LDB successful
+2024-07-17 18:44:51.245 Performing battery idle for BAT_1
+2024-07-17 18:44:51.246 Performing plugin_BAT_1_ac_ADS_1
+2024-07-17 18:44:56 - Pushing data to LDB successful
+2024-07-17 18:45:24 - Pushing data to LDB successful
