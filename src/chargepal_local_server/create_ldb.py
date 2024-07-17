@@ -44,7 +44,8 @@ def main(robots_count: int = 1, carts_count: int = 1):
     cursor.execute(
         """
         CREATE TABLE IF NOT EXISTS env_info (
-            info TEXT,
+            name TEXT,
+            value TEXT,
             count INTEGER
         )
         """
@@ -68,18 +69,9 @@ def main(robots_count: int = 1, carts_count: int = 1):
             cart_data,
         )
 
-    RBS_count = ("RBS_count", 1)
-    ADS_count = ("ADS_count", 1)
-    BCS_count = ("BCS_count", 0)
-    BWS_count = ("BWS_count", 1)
+    
     cursor.execute("DELETE FROM env_info")
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ("robots_count", robots_count))
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ("carts_count", carts_count))
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", RBS_count)
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", ADS_count)
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", BCS_count)
-    cursor.execute("INSERT INTO env_info (info,count) VALUES (?,?)", BWS_count)
-
+    
     conn.commit()
     conn.close()
 

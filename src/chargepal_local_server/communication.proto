@@ -9,6 +9,7 @@ message Request {
   string job_name = 6;
   repeated string rdbc_data = 7;
   string job_status = 8;
+  string log_text = 9;
 }
 
 message Row {
@@ -79,6 +80,10 @@ message Response_BatteryCommunication{
   bool success = 1;
 }
 
+message Response_LogText{
+  bool success = 1;
+}
+
 service Communication {
   rpc UpdateRDB(Request) returns (Response_UpdateRDB);
   rpc PullLDB(Request) returns (Response_PullLDB);
@@ -90,5 +95,6 @@ service Communication {
   rpc OperationTime(Request) returns (Response_OperationTime);
   rpc Ready2PlugInADS(Request) returns (Response_Ready2PlugInADS);
   rpc BatteryCommunication(Request) returns (Response_BatteryCommunication);
+  rpc LogText(Request) returns (Response_LogText);
 
 }

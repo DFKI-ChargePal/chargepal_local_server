@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import os
 from typing import Any
 from concurrent import futures
 from chargepal_local_server import communication_pb2_grpc
@@ -21,6 +22,7 @@ from chargepal_local_server.communication_pb2 import (
     Response_PullLDB,
     Response_BatteryCommunication,
     Response_OperationTime,
+    Response_LogText,
 )
 from chargepal_local_server.planner import Planner
 
@@ -34,6 +36,12 @@ class CommunicationServicer(communication_pb2_grpc.CommunicationServicer):
     def UpdateRDB(self, request: Request, context: Any) -> Response_UpdateRDB:
         response = read_serialize_ldb.read_serialize()
         return response
+    
+    def LogText(self, request: Request, context: Any) -> Response_LogText:
+        file_path = os.path.join(os.path.dirname(__file__), "logs/"+request.robot_name+".txt")
+        with open(file_path, 'w') as file:
+            file.write(request.log_text)
+        return Response_LogText(success=True)
 
     def PullLDB(self, request: Request, context: Any) -> Response_PullLDB:
         with open("db/ldb.db", "rb") as file:

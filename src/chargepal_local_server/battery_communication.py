@@ -51,9 +51,8 @@ def read_data(table_name: str, battery_name: str, column_name: str) -> Union[str
     sql.cursor.execute(query, (battery_name,))
     result = sql.cursor.fetchone()
     return result[0]
-
-
-def check_feedback(cart_name: str, msg_to_check: str) -> bool:
+    
+def check_feedback(cart_name, msg_to_check)->bool:
     feedback = False
     time_passed = 0
     feedback_start_time = datetime.now()
