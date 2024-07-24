@@ -7,7 +7,7 @@ from chargepal_local_server.pdb_interfaces import (
     Job,
     Robot,
     Station,
-    engine,
+    pdb_engine,
 )
 
 
@@ -123,7 +123,7 @@ def add_default_BCSs(session: Session, count: int) -> None:
 
 def reset_db() -> None:
     """Reset pdb by clearing all tables, then create one robot, cart, and station each."""
-    with Session(engine) as session:
+    with Session(pdb_engine) as session:
         for table in (Robot, Cart, Station, Job, Booking):
             session.exec(delete(table))
         add_default_robots(session, 1)
@@ -134,7 +134,7 @@ def reset_db() -> None:
 
 def initialize_db(config: Config) -> None:
     """Initialize pdb with config."""
-    with Session(engine) as session:
+    with Session(pdb_engine) as session:
         for table in (Robot, Cart, Station, Job, Booking):
             session.exec(delete(table))
         for station_name in config.ADS_names + config.BCS_names:

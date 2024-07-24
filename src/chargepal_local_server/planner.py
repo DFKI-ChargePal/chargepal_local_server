@@ -15,7 +15,7 @@ from chargepal_local_server.pdb_interfaces import (
     Job,
     Robot,
     Station,
-    engine,
+    pdb_engine,
 )
 from chargepal_local_server.update_pdb import copy_from_ldb, fetch_updated_bookings
 import logging
@@ -82,7 +82,7 @@ def get_list_str_of_dict(entries: Dict[str, str]) -> str:
 class Planner:
     def __init__(self, ldb_filepath: Optional[str] = None) -> None:
         self.access = DatabaseAccess(ldb_filepath)
-        self.session = Session(engine)
+        self.session = Session(pdb_engine)
         self.battery_manager = UpdateManager(
             {f"BAT_{number}": f"Battery_DUS_{number:02d}" for number in range(1, 7)}
         )

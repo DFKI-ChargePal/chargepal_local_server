@@ -5,7 +5,7 @@ from sqlmodel import Session, select
 from chargepal_local_server import debug_ldb
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import reset_db
-from chargepal_local_server.pdb_interfaces import Cart, Robot, engine
+from chargepal_local_server.pdb_interfaces import Cart, Robot, pdb_engine
 from chargepal_local_server.update_pdb import copy_from_ldb, fetch_updated_bookings
 
 
@@ -24,7 +24,7 @@ def test_database_consistency() -> None:
     assert (
         debug_ldb.counts.carts == cart_count
     ), f"Cart count in env_info ({debug_ldb.counts.robots}) does not match with cart_info ({robot_count})."
-    with Session(engine) as session:
+    with Session(pdb_engine) as session:
         robots = session.exec(select(Robot)).fetchall()
         carts = session.exec(select(Cart)).fetchall()
         assert (

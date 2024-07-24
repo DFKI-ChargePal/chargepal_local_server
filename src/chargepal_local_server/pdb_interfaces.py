@@ -70,7 +70,7 @@ class Job(SQLModel, table=True):
 
     def __eq__(self, other: "Job") -> bool:
         return (
-            self.id == other.id
+            other.id == self.id
             and other.type == self.type
             and other.state == self.state
             and other.schedule == self.schedule
@@ -131,6 +131,7 @@ class Booking(SQLModel, table=True):
             and other.BEV_port_location == self.BEV_port_location
             and other.actual_BEV_drop_time == self.actual_BEV_drop_time
             and other.actual_BEV_location == self.actual_BEV_location
+            and other.actual_charge_request == self.actual_charge_request
             and other.actual_plugintime_calculated == self.actual_plugintime_calculated
             and other.actual_BEV_pickup_time == self.actual_BEV_pickup_time
             and other.completion_time == self.completion_time
@@ -156,5 +157,5 @@ class Booking(SQLModel, table=True):
 
 
 pdb_filepath = os.path.join(os.path.dirname(__file__), "db/pdb.db")
-engine = create_engine(f"sqlite:///{pdb_filepath}")
-SQLModel.metadata.create_all(engine)
+pdb_engine = create_engine(f"sqlite:///{pdb_filepath}")
+SQLModel.metadata.create_all(pdb_engine)

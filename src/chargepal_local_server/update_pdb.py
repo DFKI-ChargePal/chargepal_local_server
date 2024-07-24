@@ -14,7 +14,7 @@ from chargepal_local_server.pdb_interfaces import (
     Booking,
     Cart,
     Robot,
-    engine,
+    pdb_engine,
 )
 
 
@@ -61,7 +61,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
     ldb_connection = sqlite3.connect(filepath)
     ldb_cursor = ldb_connection.cursor()
 
-    with Session(engine) as session:
+    with Session(pdb_engine) as session:
         ldb_cursor.execute(
             """SELECT
             name,
@@ -212,7 +212,7 @@ def copy_from_ldb(filepath: str = ldb_filepath) -> None:
 def fetch_updated_bookings() -> Dict[int, Booking]:
     """Return bookings updated in pdb which have not yet been fetched."""
     updated_bookings: Dict[int, Booking] = {}
-    with Session(engine) as session:
+    with Session(pdb_engine) as session:
         bookings = session.exec(select(Booking)).fetchall()
         for booking in bookings:
             booking_id = booking.id
