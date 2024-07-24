@@ -1,6 +1,5 @@
 from typing import Dict, List, Optional, Tuple
 import os
-import re
 import sqlite3
 
 
@@ -114,81 +113,3 @@ def update_locations(
             update(
                 f"robot_info SET robot_location = '{location}' WHERE name = '{name}'"
             )
-
-
-class ParkingAreaCounts:
-    """
-    Get or set counts in the env_info table.
-
-    Examples:
-    counts.robots
-    counts.carts = 2
-    counts.set("robots 1 carts: 2, RBS = 3; ADS4 and BCS:5 BWS=6")
-    """
-
-    def __repr__(self) -> str:
-        entries: List[Tuple[str, int]] = select("env_info")
-        return str({f"{name.replace('_count', '')}": count for name, count in entries})
-
-    @staticmethod
-    def select(prefix: str) -> int:
-        return select(f"count FROM env_info WHERE info = '{prefix}_count'")
-
-    @staticmethod
-    def update(prefix: str, value: int) -> None:
-        update(f"env_info SET count = {value} WHERE info = '{prefix}_count'")
-
-    @property
-    def robots(self) -> int:
-        return self.select("robots")[0][0]
-
-    @robots.setter
-    def robots(self, value: int) -> None:
-        return self.update("robots", value)
-
-    @property
-    def carts(self) -> int:
-        return self.select("carts")[0][0]
-
-    @carts.setter
-    def carts(self, value: int) -> None:
-        return self.update("carts", value)
-
-    @property
-    def RBS(self) -> int:
-        return self.select("RBS")[0][0]
-
-    @RBS.setter
-    def RBS(self, value: int) -> None:
-        return self.update("RBS", value)
-
-    @property
-    def ADS(self) -> int:
-        return self.select("ADS")[0][0]
-
-    @ADS.setter
-    def ADS(self, value: int) -> None:
-        return self.update("ADS", value)
-
-    @property
-    def BCS(self) -> int:
-        return self.select("BCS")[0][0]
-
-    @BCS.setter
-    def BCS(self, value: int) -> None:
-        return self.update("BCS", value)
-
-    @property
-    def BWS(self) -> int:
-        return self.select("BWS")[0][0]
-
-    @BWS.setter
-    def BWS(self, value: int) -> None:
-        return self.update("BWS", value)
-
-    def set(self, string: str) -> None:
-        for prefix, count in re.findall(r"([A-Za-z]+)\s*[\:\=]?\s*(\d+)", string):
-            self.update(prefix, int(count))
-
-
-counts = ParkingAreaCounts()
