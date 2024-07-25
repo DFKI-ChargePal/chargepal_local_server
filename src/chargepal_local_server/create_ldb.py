@@ -1,115 +1,84 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Author: Gurunatraj Parthasarathy
-Email: gurunatraj.parthasarathy@dfki.de
-"""
-import os
-import sqlite3
+from typing import List
+from sqlmodel import Session, delete
+from chargepal_local_server.ldb_interfaces import (
+    Cart_info,
+    Env_info,
+    Robot_info,
+    ldb_engine,
+)
 
 
-def main(robots_count: int = 1, carts_count: int = 1):
-
-    conn = sqlite3.connect(os.path.join(os.path.dirname(__file__), "db/ldb.db"))
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS robot_info (
-            name TEXT,
-            robot_location TEXT,
-            current_job_id INTEGER,
-            current_job TEXT,
-            ongoing_action TEXT,
-            previous_action TEXT,
-            cart_on_robot TEXT,
-            job_status TEXT,
-            availability BOOLEAN,
-            robot_charge FLOAT,
-            error_count INTEGER
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS cart_info (
-            name TEXT,
-            cart_location TEXT,
-            robot_on_cart TEXT,
-            plugged TEXT,
-            action_state TEXT,
-            error_count INTEGER
-        )
-        """
-    )
-    cursor.execute(
-        """
-        CREATE TABLE IF NOT EXISTS env_info (
-            name TEXT,
-            value TEXT,
-            count INTEGER
-        )
-        """
+def create_robot_info(name: str, location: str) -> Robot_info:
+    return Robot_info(
+        name=name,
+        robot_location=location,
+        current_job_id=None,
+        current_job=None,
+        ongoing_action=None,
+        previous_action=None,
+        cart_on_robot=None,
+        job_status=None,
+        availability=True,
+        robot_charge=0.0,
+        error_count=0,
     )
 
-    cursor.execute("DELETE FROM orders_in")
 
-    cursor.execute("DELETE FROM robot_info")
-    for number in range(1, robots_count + 1):
-        robot_data = (f"ChargePal{number}", f"RBS_{number}",None, None, None, None, None,None,True, 0.0, 0)
-        cursor.execute(
-            "INSERT INTO robot_info (name,robot_location,current_job_id,current_job, ongoing_action, previous_action, cart_on_robot,job_status,availability,robot_charge,error_count) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-            robot_data,
-        )
-
-    cursor.execute("DELETE FROM cart_info")
-    for number in range(1, carts_count + 1):
-        cart_data = (f"BAT_{number}", f"BWS_{number}", None, None,None, 0)
-        cursor.execute(
-            "INSERT INTO cart_info (name,cart_location, robot_on_cart, plugged,action_state, error_count) VALUES (?,?,?,?,?,?)",
-            cart_data,
-        )
-
-    
-    cursor.execute("DELETE FROM env_info")
-    robot_names = []
-    cart_names = []
-    bws_names = []
-    rbs_names = []
-    ads_names = ['ADS_1']
-    bcs_names = ['BCS_1']
-    for number in range(1, robots_count + 1):
-        robot_names.append(f"ChargePal{number}")
-        rbs_names.append(f"RBS_{number}")
-    for number in range(1, carts_count + 1):
-        cart_names.append(f"BAT_{number}")
-        bws_names.append(f"BWS_{number}")
-        
-    
-    env_info = ("robot_names",f"{robot_names}",len(robot_names))
-    excute_env_info(cursor,env_info)
-    
-    env_info = ("rbs",f"{rbs_names}",len(rbs_names))
-    excute_env_info(cursor,env_info)
-    
-    env_info = ("ads",f"{ads_names}",len(ads_names))
-    excute_env_info(cursor,env_info)
-    
-    env_info = ("bcs",f"{bcs_names}",len(bcs_names))
-    excute_env_info(cursor,env_info)
-    
-    env_info = ("cart_names",f"{cart_names}",len(cart_names))
-    excute_env_info(cursor,env_info)
-    
-    env_info = ("bws",f"{bws_names}",len(bws_names))
-    excute_env_info(cursor,env_info)
-    conn.commit()
-    conn.close()
-
-def excute_env_info(cursor: sqlite3.Cursor, info: tuple):
-    cursor.execute(
-        "INSERT INTO env_info (name, value, count) VALUES (?,?,?)",
-        info,
+def create_cart_info(name: str, location: str) -> Cart_info:
+    return Cart_info(
+        name=name,
+        cart_location=location,
+        robot_on_cart=None,
+        plugged=None,
+        action_state=None,
+        error_count=0,
     )
-    
+
+
+def clear_db() -> None:
+    """Clear all tables in the ldb."""
+    with Session(ldb_engine) as session:
+        for table in (Cart_info, Env_info, Robot_info):
+            session.exec(delete(table))
+        session.commit()
+
+
+def add_env_info(session: Session, name: str, entries: List[str]) -> None:
+    session.add(Env_info(name=name, value=f"{entries}", count=len(entries)))
+
+
+def main(
+    robots_count: int = 1, carts_count: int = 1, ads_count: int = 1, bcs_count: int = 1
+):
+    clear_db()
+    robot_names: List[str] = []
+    cart_names: List[str] = []
+    rbs_names: List[str] = []
+    bws_names: List[str] = []
+    ads_names: List[str] = [f"ADS_{number}" for number in range(1, ads_count + 1)]
+    bcs_names: List[str] = [f"BCS_{number}" for number in range(1, bcs_count + 1)]
+    with Session(ldb_engine) as session:
+        for number in range(1, robots_count + 1):
+            robot_name = f"ChargePal{number}"
+            rbs_name = f"RBS_{number}"
+            robot_names.append(robot_name)
+            rbs_names.append(rbs_name)
+            session.add(create_robot_info(robot_name, rbs_name))
+        for number in range(1, carts_count + 1):
+            cart_name = f"BAT_{number}"
+            bws_name = f"BWS_{number}"
+            cart_names.append(cart_name)
+            bws_names.append(bws_name)
+            session.add(create_cart_info(cart_name, bws_name))
+        add_env_info(session, "robot_names", robot_names)
+        add_env_info(session, "cart_names", cart_names)
+        add_env_info(session, "rbs_names", rbs_names)
+        add_env_info(session, "bws_names", bws_names)
+        add_env_info(session, "ads_names", ads_names)
+        add_env_info(session, "bcs_names", bcs_names)
+        session.commit()
+
+
 if __name__ == "__main__":
     main()
