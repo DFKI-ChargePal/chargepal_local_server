@@ -2,17 +2,17 @@
 from datetime import datetime, timedelta
 import os
 import sqlite3
-import sys
+
+
+db_filepath = os.path.join(os.path.dirname(__file__), "db/ldb.db")
 
 
 def create_sample_booking(
-    db_filepath: str = os.path.join(os.path.dirname(__file__), "db/ldb.db"),
     drop_location: str = "021",
     charging_session_status: str = "checked_in",
 ) -> None:
     connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
-
     cursor.execute("SELECT MAX(charging_session_id) FROM orders_in")
     results = cursor.fetchall()
     booking_id = int(results[0][0]) + 1 if results and results[0][0] else 1
@@ -59,19 +59,18 @@ def create_sample_booking(
     connection.close()
 
 
-def create_table(
-    db_filepath: str = os.path.join(os.path.dirname(__file__), "db/ldb.db"),
-    drop_existing_table: bool = False,
-) -> None:
+def create_table() -> bool:
     connection = sqlite3.connect(db_filepath)
     cursor = connection.cursor()
-
-    if drop_existing_table:
-        cursor.execute("DROP TABLE orders_in;")
+    cursor.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name = 'orders_in';"
+    )
+    if cursor.fetchall():
+        return False
 
     cursor.execute(
         """
-        CREATE TABLE IF NOT EXISTS orders_in (
+        CREATE TABLE orders_in (
             charging_session_id TEXT,
             app_id TEXT,
             customer_id TEXT,
@@ -106,13 +105,12 @@ def create_table(
 
     connection.commit()
     connection.close()
-
-    print("Inserting values into table orders_in.")
-    create_sample_booking(db_filepath)
+    return True
 
 
 if __name__ == "__main__":
-    if len(sys.argv) <= 2:
-        create_table(drop_existing_table=bool(len(sys.argv) > 1 and sys.argv[1]))
+    if create_table():
+        print("Table 'orders_in' created.")
     else:
-        print(f"Usage: {os.path.basename(__file__)} [<drop previous orders_in table>]")
+        create_sample_booking()
+        print("New booking created into table 'orders_in'.")

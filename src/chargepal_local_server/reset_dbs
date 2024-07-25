@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 rm "$(dirname "$(realpath "$0")")"/db/*.db
 ./create_ldb.py
+./create_ldb_orders.py
 ./create_pdb.py
