@@ -11,7 +11,7 @@ from chargepal_local_server.pdb_interfaces import (
 )
 
 
-def create_default_robot(name: str, location: str) -> Robot:
+def create_robot(name: str, location: str) -> Robot:
     return Robot(
         name=name,
         robot_location=location,
@@ -27,7 +27,7 @@ def create_default_robot(name: str, location: str) -> Robot:
     )
 
 
-def create_default_cart(name: str, location: str) -> Cart:
+def create_cart(name: str, location: str) -> Cart:
     return Cart(
         name=name,
         cart_location=location,
@@ -52,7 +52,7 @@ def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> 
     for number in range(1, count + 1):
         robot_name = f"ChargePal{number}"
         robot_location = f"RBS_{number}"
-        session.add(create_default_robot(robot_name, robot_location))
+        session.add(create_robot(robot_name, robot_location))
         if with_RBSs:
             session.add(
                 Station(
@@ -74,7 +74,7 @@ def add_default_carts(
     for number in range(1, count + 1):
         cart_name = f"BAT_{number}"
         cart_location = f"BWS_{number}"
-        session.add(create_default_cart(cart_name, cart_location))
+        session.add(create_cart(cart_name, cart_location))
         if with_BWSs:
             session.add(
                 Station(
@@ -121,11 +121,18 @@ def add_default_BCSs(session: Session, count: int) -> None:
         )
 
 
-def reset_db() -> None:
-    """Reset pdb by clearing all tables, then create one robot, cart, and station each."""
+def clear_db() -> None:
+    """Clear all tables in the pdb."""
     with Session(pdb_engine) as session:
         for table in (Robot, Cart, Station, Job, Booking):
             session.exec(delete(table))
+        session.commit()
+
+
+def create_default_db() -> None:
+    """Clear pdb, then create one robot, cart, and station each."""
+    clear_db()
+    with Session(pdb_engine) as session:
         add_default_robots(session, 1)
         add_default_carts(session, 1, with_BCSs=True)
         add_default_ADSs(session, 1)
@@ -134,9 +141,8 @@ def reset_db() -> None:
 
 def initialize_db(config: Config) -> None:
     """Initialize pdb with config."""
+    clear_db()
     with Session(pdb_engine) as session:
-        for table in (Robot, Cart, Station, Job, Booking):
-            session.exec(delete(table))
         for station_name in config.ADS_names + config.BCS_names:
             session.add(
                 Station(
@@ -156,11 +162,11 @@ def initialize_db(config: Config) -> None:
                 )
             )
         for robot_name, robot_location in config.robot_locations.items():
-            session.add(create_default_robot(robot_name, robot_location))
+            session.add(create_robot(robot_name, robot_location))
         for cart_name, cart_location in config.cart_locations.items():
-            session.add(create_default_cart(cart_name, cart_location))
+            session.add(create_cart(cart_name, cart_location))
         session.commit()
 
 
 if __name__ == "__main__":
-    reset_db()
+    create_default_db()
