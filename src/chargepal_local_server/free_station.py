@@ -1,15 +1,10 @@
 from typing import Dict, Iterable, Optional, List, Set, Tuple, Union
 from collections import defaultdict
+from chargepal_local_server.access_ldb import DatabaseAccess
 from chargepal_local_server.layout import Layout
 import os
 import re
 import sqlite3
-
-
-def fetch_env_count(count_name: str, cursor: sqlite3.Cursor) -> int:
-    """Return count for count_name from env_info of ldb."""
-    cursor.execute(f"SELECT count FROM env_info WHERE info = '{count_name}';")
-    return int(cursor.fetchone()[0])
 
 
 def fetch_robot_location(robot_name: str, cursor: sqlite3.Cursor) -> str:
@@ -79,7 +74,9 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
                     blocked_stations.add(get_station_name(value, station_prefix))
 
         # Choose the first available station that is not in the robot's blocker.
-        station_count = fetch_env_count(station_prefix + "count", cursor)
+        access = DatabaseAccess()
+        env_infos = access.fetch_env_infos()
+        station_count = len(env_infos[f"{station_prefix.lower()}names"])
         free_station = ""
         best_distance = float("inf")
         for station_number in range(1, station_count + 1):

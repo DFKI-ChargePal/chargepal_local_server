@@ -8,6 +8,7 @@ import mysql.connector.cursor
 import os
 import re
 import sqlite3
+import yaml
 
 
 ALL_BOOKING_HEADERS = (
@@ -159,11 +160,11 @@ class DatabaseAccess:
                 for entries in cursor.fetchall()
             }
 
-    def fetch_env_infos(self) -> Dict[str, int]:
-        """Return env_info in ldb as dict of names and counts."""
+    def fetch_env_infos(self) -> Dict[str, List[str]]:
+        """Return a dict of names and values from env_info in ldb."""
         with SQLite3Access(self.ldb_filepath) as cursor:
-            cursor.execute("SELECT * FROM env_info;")
-            return {header: count for header, count in cursor.fetchall()}
+            cursor.execute("SELECT name, value FROM env_info;")
+            return {name: yaml.safe_load(value) for name, value in cursor.fetchall()}
 
     def fetch_updated_bookings(
         self, headers: Iterable[str], threshold: datetime = datetime.min

@@ -17,7 +17,8 @@ import grpc
 import logging
 import os
 import time
-from chargepal_local_server import create_ldb, debug_ldb
+from chargepal_local_server import create_ldb, debug_sqlite_db
+from chargepal_local_server.access_ldb import DatabaseAccess
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import initialize_db
 from chargepal_local_server.planner import (
@@ -37,15 +38,19 @@ class Environment:
     def __init__(self, config: Config) -> None:
         self.cwd = os.getcwd()
         self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-        create_ldb.main(config.robot_count, config.cart_count)
-        debug_ldb.counts.set(config.counts_str)
-        debug_ldb.delete_from("orders_in")
-        debug_ldb.update_locations(config.locations)
+        create_ldb.main(
+            config.robot_count, config.cart_count, config.ADS_count, config.BCS_count
+        )
+        access = DatabaseAccess()
+        env_infos = access.fetch_env_infos()
+        debug_sqlite_db.delete_from("orders_in")
+        debug_sqlite_db.update_locations(config.locations)
         initialize_db(config)
         self.robot_clients = {
-            f"ChargePal{number}": Core("localhost:55555", f"ChargePal{number}")
-            for number in range(1, debug_ldb.counts.robots + 1)
+            name: Core("localhost:55555", f"ChargePal{number}")
+            for number, name in enumerate(env_infos["robot_names"], start=1)
         }
+
         self.planner = Planner()
 
     def __enter__(self) -> "Environment":
@@ -134,7 +139,7 @@ def test_bring_and_recharge() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_1 finish charging.
-        debug_ldb.update(
+        debug_sqlite_db.update(
             f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
         )
         monitoring.update_car_charged("ADS_1")
@@ -161,7 +166,7 @@ def test_bring_and_recharge() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_2 finish charging.
-        debug_ldb.update(
+        debug_sqlite_db.update(
             f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
         )
         monitoring.update_car_charged("ADS_1")
@@ -207,7 +212,7 @@ def test_failures() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
-        debug_ldb.update(
+        debug_sqlite_db.update(
             f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
         )
         client.update_job_monitor("RECHARGE_SELF", "Failure")
@@ -276,7 +281,7 @@ def test_status_update() -> None:
             environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF
         )
         client.update_job_monitor("RECHARGE_SELF", "Success")
-        debug_ldb.update(
+        debug_sqlite_db.update(
             f"orders_in SET charging_session_status = '{BookingState.CHECKED_IN}'"
         )
         environment.wait_for_job(
@@ -288,7 +293,7 @@ def test_plug_in_handshake() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        get_status = lambda: debug_ldb.select(
+        get_status = lambda: debug_sqlite_db.select(
             "charging_session_status FROM orders_in",
         )[-1][0]
         assert get_status() == BookingState.CHECKED_IN, get_status()
@@ -297,7 +302,7 @@ def test_plug_in_handshake() -> None:
         assert not environment.planner.handshake_plug_in("ChargePal1")
         assert get_status() == BookingState.ROBOT_READY_TO_PLUG, get_status()
         assert not environment.planner.handshake_plug_in("ChargePal1")
-        debug_ldb.update(
+        debug_sqlite_db.update(
             f"orders_in SET charging_session_status = '{BookingState.BEV_PENDING}'"
             f" WHERE charging_session_status = '{BookingState.ROBOT_READY_TO_PLUG}'"
         )
@@ -310,16 +315,16 @@ def test_cancel_booking() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        get_status = lambda: debug_ldb.select(
+        get_status = lambda: debug_sqlite_db.select(
             "charging_session_status FROM orders_in",
         )[-1][0]
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.planner.tick()
-        debug_ldb.update("orders_in set charging_session_status = 'CANCELED'")
+        debug_sqlite_db.update("orders_in set charging_session_status = 'CANCELED'")
         create_sample_booking(drop_location="ADS_1")
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.wait_for_job(client, JobType.BRING_CHARGER)
-        debug_ldb.update("orders_in set charging_session_status = 'CANCELED'")
+        debug_sqlite_db.update("orders_in set charging_session_status = 'CANCELED'")
         create_sample_booking(drop_location="ADS_1")
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.wait_for_job(client, JobType.BRING_CHARGER)

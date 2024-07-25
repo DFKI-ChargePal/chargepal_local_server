@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import sys
 import time
-from chargepal_local_server import debug_ldb
+from chargepal_local_server import debug_sqlite_db
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 
 
@@ -17,11 +17,11 @@ def loop(operation_time: float, loop_time: float) -> None:
         time.sleep(operation_time)
         print("Wait for database update by charger.")
         while True:
-            status = debug_ldb.select("charging_session_status FROM orders_in")[-1][0]
+            status = debug_sqlite_db.select("charging_session_status FROM orders_in")[-1][0]
             if status == "plugin_success":
                 time.sleep(1.0)
                 print("Finish charging vehicle.")
-                debug_ldb.update(
+                debug_sqlite_db.update(
                     "orders_in SET charging_session_status = 'finished'"
                     " WHERE charging_session_status = 'plugin_success'"
                 )
