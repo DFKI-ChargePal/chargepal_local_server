@@ -22,7 +22,7 @@ def loop(operation_time: float, loop_time: float) -> None:
                 time.sleep(1.0)
                 print("Finish charging vehicle.")
                 debug_sqlite_db.update(
-                    "orders_in SET charging_session_status = 'finished'"
+                    "orders_in SET charging_session_status = 'ready'"
                     " WHERE charging_session_status = 'plugin_success'"
                 )
                 break

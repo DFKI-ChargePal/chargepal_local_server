@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Iterable, List, Optional, Type, Union
+from typing import Dict, Iterable, List, Optional, Tuple, Type, Union
 from types import TracebackType
 from datetime import datetime, timedelta
 from chargepal_local_server.pdb_interfaces import to_str
@@ -214,6 +214,13 @@ class LDB:
                     f"UPDATE cart_info SET cart_location = '{location}'"
                     f" WHERE name = '{cart}';"
                 )
+
+    @classmethod
+    def get_session_statuses(cls) -> List[Tuple[int, str]]:
+        """Return list of (charging_session_id, charging_session_status) from ldb."""
+        with cls.get() as cursor:
+            cursor.execute("SELECT charging_session_id, charging_session_status FROM orders_in;")
+            return cursor.fetchall()
 
     @classmethod
     def update_session_status(

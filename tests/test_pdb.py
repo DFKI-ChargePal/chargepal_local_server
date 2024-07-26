@@ -7,6 +7,7 @@ from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import create_default_db
 from chargepal_local_server.pdb_interfaces import Cart, Robot, pdb_engine
+from chargepal_local_server.planner import BookingState
 from chargepal_local_server.update_pdb import copy_from_ldb, fetch_updated_bookings
 
 
@@ -54,23 +55,25 @@ def test_pdb_update() -> None:
         get_absolute_filepath("ldb_no_orders.db"),
         get_absolute_filepath("../src/chargepal_local_server/db/ldb.db"),
     )
-    # Check fetching from empty ldb.
+    fetch_updated_bookings()
+    # Check fetching from ldb.
     create_default_db()
     copy_from_ldb()
     assert not fetch_updated_bookings()
     # Check fetching one new booking.
     create_sample_booking()
+    charging_session_id, _ = LDB.get_session_statuses()[-1]
     assert not fetch_updated_bookings()
     copy_from_ldb()
-    assert len(fetch_updated_bookings()) == 1
+    updated_bookings = fetch_updated_bookings()
+    assert len(updated_bookings) == 1, updated_bookings
     assert not fetch_updated_bookings()
     # Check fetching one update and one new booking.
-    debug_sqlite_db.update(
-        "orders_in SET charging_session_status = 'finished' WHERE charging_session_id = 1"
-    )
+    LDB.update_session_status(charging_session_id, BookingState.READY)
     create_sample_booking()
     copy_from_ldb()
-    assert len(fetch_updated_bookings()) == 2
+    updated_bookings = fetch_updated_bookings()
+    assert len(updated_bookings) == 2, updated_bookings
 
 
 if __name__ == "__main__":

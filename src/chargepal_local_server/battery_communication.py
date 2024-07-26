@@ -24,7 +24,7 @@ class UpdateManager:
         Return from CAN_MSG_RX_LIVE in lsv_db a dict of cart_names and battery states
         for which last_change is greater than last time.
         """
-        sql_operation = f"SELECT Battry_ID, State_bat_mod_ERROR FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
+        sql_operation = f"SELECT Battry_ID, bat_state_charging FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
         self.last_time = datetime.now()
         updated_states: Dict[str, str] = {}
         if MySQLAccess.is_configured():

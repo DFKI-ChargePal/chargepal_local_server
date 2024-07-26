@@ -124,6 +124,9 @@ def test_bring_and_recharge() -> None:
         cart1 = environment.planner.get_cart("BAT_1")
         # Book and let car appear.
         environment.handle_events(monitoring.get_next_events())
+        charging_session_ids = [
+            charging_session_id for charging_session_id, _ in LDB.get_session_statuses()
+        ]
         # Move car to ADS_1.
         monitoring.update_car_at_ads("ADS_1")
         # Check in.
@@ -138,9 +141,7 @@ def test_bring_and_recharge() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_1 finish charging.
-        debug_sqlite_db.update(
-            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
-        )
+        LDB.update_session_status(charging_session_ids[0], BookingState.READY)
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_1 to BCS_1.
         job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
@@ -165,9 +166,7 @@ def test_bring_and_recharge() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Success")
         # Let BAT_2 finish charging.
-        debug_sqlite_db.update(
-            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
-        )
+        LDB.update_session_status(charging_session_ids[1], BookingState.READY)
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_2 to BWS_1.
         job = environment.wait_for_job(client, JobType.STOW_CHARGER)
@@ -202,6 +201,7 @@ def test_failures() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
+        charging_session_id, _ = LDB.get_session_statuses()[-1]
         job = environment.wait_for_job(client, JobType.BRING_CHARGER)
         client.update_job_monitor("BRING_CHARGER", "Failure")
         environment.planner.tick()
@@ -211,9 +211,7 @@ def test_failures() -> None:
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         environment.wait_for_job(client, JobType.RECHARGE_SELF)
-        debug_sqlite_db.update(
-            f"orders_in SET charging_session_status = '{BookingState.FINISHED}'"
-        )
+        LDB.update_session_status(charging_session_id, BookingState.READY)
         client.update_job_monitor("RECHARGE_SELF", "Failure")
         job = environment.wait_for_job(client, JobType.RECHARGE_CHARGER)
         client.update_job_monitor("RECHARGE_CHARGER", "Failure")
@@ -276,13 +274,12 @@ def test_status_update() -> None:
         create_sample_booking(
             drop_location="ADS_1", charging_session_status=BookingState.BOOKED
         )
+        charging_session_id, _ = LDB.get_session_statuses()[-1]
         environment.wait_for_job(
             environment.robot_clients["ChargePal1"], JobType.RECHARGE_SELF
         )
         client.update_job_monitor("RECHARGE_SELF", "Success")
-        debug_sqlite_db.update(
-            f"orders_in SET charging_session_status = '{BookingState.CHECKED_IN}'"
-        )
+        LDB.update_session_status(charging_session_id, BookingState.CHECKED_IN)
         environment.wait_for_job(
             environment.robot_clients["ChargePal1"], JobType.BRING_CHARGER
         )
@@ -292,19 +289,15 @@ def test_plug_in_handshake() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        get_status = lambda: debug_sqlite_db.select(
-            "charging_session_status FROM orders_in",
-        )[-1][0]
+        charging_session_id, _ = LDB.get_session_statuses()[-1]
+        get_status = lambda: LDB.get_session_statuses()[-1][-1]
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.wait_for_job(client, JobType.BRING_CHARGER)
-        assert get_status() == BookingState.SCHEDULED, get_status()
+        assert get_status() == BookingState.BOOKED, get_status()
         assert not environment.planner.handshake_plug_in("ChargePal1")
-        assert get_status() == BookingState.ROBOT_READY_TO_PLUG, get_status()
+        assert get_status() == BookingState.PENDING, get_status()
         assert not environment.planner.handshake_plug_in("ChargePal1")
-        debug_sqlite_db.update(
-            f"orders_in SET charging_session_status = '{BookingState.BEV_PENDING}'"
-            f" WHERE charging_session_status = '{BookingState.ROBOT_READY_TO_PLUG}'"
-        )
+        LDB.update_session_status(charging_session_id, BookingState.PENDING)
         assert not environment.planner.handshake_plug_in("ChargePal1")
         environment.planner.tick()
         assert environment.planner.handshake_plug_in("ChargePal1")
@@ -314,16 +307,16 @@ def test_cancel_booking() -> None:
     with Environment(CONFIG_ALL_ONE) as environment:
         client = environment.robot_clients["ChargePal1"]
         create_sample_booking(drop_location="ADS_1")
-        get_status = lambda: debug_sqlite_db.select(
-            "charging_session_status FROM orders_in",
-        )[-1][0]
+        charging_session_id, _ = LDB.get_session_statuses()[-1]
+        get_status = lambda: LDB.get_session_statuses()[-1][-1]
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.planner.tick()
-        debug_sqlite_db.update("orders_in set charging_session_status = 'CANCELED'")
+        LDB.update_session_status(charging_session_id, BookingState.CANCELED)
         create_sample_booking(drop_location="ADS_1")
+        charging_session_id, _ = LDB.get_session_statuses()[-1]
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.wait_for_job(client, JobType.BRING_CHARGER)
-        debug_sqlite_db.update("orders_in set charging_session_status = 'CANCELED'")
+        LDB.update_session_status(charging_session_id, BookingState.CANCELED)
         create_sample_booking(drop_location="ADS_1")
         assert get_status() == BookingState.CHECKED_IN, get_status()
         environment.wait_for_job(client, JobType.BRING_CHARGER)

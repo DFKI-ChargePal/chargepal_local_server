@@ -37,12 +37,12 @@ class ChargerCommand(IntEnum):
 class BookingState:
     BOOKED = "booked"
     CHECKED_IN = "checked_in"
-    SCHEDULED = "scheduled"
-    ROBOT_READY_TO_PLUG = "robot_ready2plug"
-    BEV_PENDING = "BEV_pending"
+    # Note: Not yet implemented in LSV.
+    # SCHEDULED = "scheduled"
+    # ROBOT_READY_TO_PLUG = "robot_ready2plug"
+    PENDING = "pending"
     CHARGING_BEV = "charging_BEV"
-    WAITING_FOR_BAT_CHANGE = "waiting_for_bat_change"
-    FINISHED = "finished"
+    READY = "ready"
     CANCELED = "canceled"
     NO_SHOW = "no_show"
 
@@ -298,7 +298,7 @@ class Planner:
             # Update charging_session_status.
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
-                LDB.update_session_status(job.booking_id, "plugin_success")
+                # Note: Update charging_session_status when corresponding status is implemented.
             elif job.type == JobType.STOW_CHARGER:
                 # Note: Assume cart is always available for development
                 #  until charger can confirm it in reality.
@@ -393,17 +393,18 @@ class Planner:
                     )
                 )  # Transition J0
                 logging.info(f"{job} created.")
-                booking.charging_session_status = BookingState.SCHEDULED
+                # Note: Use BOOKED as workaround for missing status SCHEDULED.
+                booking.charging_session_status = BookingState.BOOKED
                 LDB.update_session_status(
-                    booking_id, BookingState.SCHEDULED
+                    booking_id, booking.charging_session_status
                 )  # Transition B1
                 logging.debug(f"{booking} scheduled.")
             elif BookingState.equals(
-                booking.charging_session_status, BookingState.BEV_PENDING
+                booking.charging_session_status, BookingState.PENDING
             ):
                 self.plugin_states[booking_id] = PlugInState.BEV_PENDING
             elif BookingState.equals(
-                booking.charging_session_status, BookingState.FINISHED
+                booking.charging_session_status, BookingState.READY
             ):
                 cart = self.session.exec(
                     select(Cart).where(Cart.booking_id == booking.id)
@@ -648,7 +649,8 @@ class Planner:
         plugin_state = self.plugin_states[booking_id]
         if plugin_state == PlugInState.BRING_CHARGER:
             self.plugin_states[booking_id] = PlugInState.ROBOT_READY2PLUG
-            LDB.update_session_status(booking_id, BookingState.ROBOT_READY_TO_PLUG)
+            # Note: Use PENDING as workaround for missing status ROBOT_READY_TO_PLUG.
+            LDB.update_session_status(booking_id, BookingState.PENDING)
             logging.debug(f"{booking}'s robot is ready to plug.")
         elif plugin_state == PlugInState.BEV_PENDING:
             self.plugin_states[booking_id] = PlugInState.PLUG_IN
