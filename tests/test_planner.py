@@ -18,7 +18,7 @@ import logging
 import os
 import time
 from chargepal_local_server import create_ldb, debug_sqlite_db
-from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import initialize_db
 from chargepal_local_server.planner import (
@@ -41,8 +41,7 @@ class Environment:
         create_ldb.main(
             config.robot_count, config.cart_count, config.ADS_count, config.BCS_count
         )
-        access = DatabaseAccess()
-        env_infos = access.fetch_env_infos()
+        env_infos = LDB.fetch_env_infos()
         debug_sqlite_db.delete_from("orders_in")
         debug_sqlite_db.update_locations(config.locations)
         initialize_db(config)

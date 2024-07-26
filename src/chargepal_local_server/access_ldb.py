@@ -11,6 +11,7 @@ import sqlite3
 import yaml
 
 
+SQLITE_DB_FILEPATH = os.path.join(os.path.dirname(__file__), "db/ldb.db")
 MYSQL_CONFIG_FILEPATH = os.path.expanduser("~/.my.cnf")
 
 
@@ -93,8 +94,8 @@ def parse_any(obj: object) -> object:
 
 
 class SQLite3Access:
-    def __init__(self, ldb_filepath: str) -> None:
-        self.connection = sqlite3.connect(ldb_filepath)
+    def __init__(self) -> None:
+        self.connection = sqlite3.connect(SQLITE_DB_FILEPATH)
         self.cursor = self.connection.cursor()
 
     def __enter__(self) -> sqlite3.Cursor:
@@ -136,30 +137,21 @@ class MySQLAccess:
         return os.path.isfile(MYSQL_CONFIG_FILEPATH)
 
 
-class DatabaseAccess:
-    def __init__(self, ldb_filepath: Optional[str] = None) -> None:
-        self.ldb_filepath = (
-            ldb_filepath
-            if ldb_filepath
-            else os.path.join(os.path.dirname(__file__), "db/ldb.db")
-        )
-
-    def get(self) -> Union[SQLite3Access, MySQLAccess]:
+class LDB:
+    @staticmethod
+    def get() -> Union[SQLite3Access, MySQLAccess]:
         """Return a MySQLAccess if the MySQL config file exists, else a SQLite3Access."""
-        return (
-            MySQLAccess()
-            if MySQLAccess.is_configured()
-            else SQLite3Access(self.ldb_filepath)
-        )
+        return MySQLAccess() if MySQLAccess.is_configured() else SQLite3Access()
 
+    @classmethod
     def fetch_by_first_header(
-        self, table: str, headers: Iterable[str]
+        cls, table: str, headers: Iterable[str]
     ) -> Dict[str, Dict[str, object]]:
         """
         Return from ldb a dict for the first header in each row
         consisting of the remaining headers and entries.
         """
-        with self.get() as cursor:
+        with cls.get() as cursor:
             cursor.execute(f"SELECT {', '.join(headers)} FROM {table};")
             return {
                 entries[0]: {
@@ -168,20 +160,23 @@ class DatabaseAccess:
                 for entries in cursor.fetchall()
             }
 
-    def fetch_env_infos(self) -> Dict[str, List[str]]:
+    @staticmethod
+    def fetch_env_infos() -> Dict[str, List[str]]:
         """Return a dict of names and values from env_info in ldb."""
-        with self.get() as cursor:
+        with SQLite3Access() as cursor:
             cursor.execute("SELECT name, value FROM env_info;")
             return {name: yaml.safe_load(value) for name, value in cursor.fetchall()}
 
-    def fetch_env_count(self, name: str) -> int:
+    @staticmethod
+    def fetch_env_count(name: str) -> int:
         """Return the count for name from env_info in ldb."""
-        with self.get() as cursor:
+        with SQLite3Access() as cursor:
             cursor.execute(f"SELECT count FROM env_info WHERE name = '{name}';")
             return int(cursor.fetchone()[0])
 
+    @classmethod
     def fetch_updated_bookings(
-        self, headers: Iterable[str], threshold: datetime = datetime.min
+        cls, headers: Iterable[str], threshold: datetime = datetime.min
     ) -> List[Dict[str, object]]:
         """
         Return from orders_in in ldb a dict of headers and entries
@@ -189,7 +184,7 @@ class DatabaseAccess:
 
         Note: You must handle updates within the same second.
         """
-        with self.get() as cursor:
+        with cls.get() as cursor:
             cursor.execute(
                 f"SELECT {', '.join(headers)} FROM orders_in"
                 f" WHERE last_change >= '{threshold}';"
@@ -200,16 +195,16 @@ class DatabaseAccess:
             for entries in all_entries
         ]
 
-    def delete_bookings(self) -> None:
+    @classmethod
+    def delete_bookings(cls) -> None:
         """Delete all bookings from orders_in in ldb."""
-        with self.get() as cursor:
+        with cls.get() as cursor:
             cursor.execute("DELETE FROM orders_in")
 
-    def update_location(
-        self, location: str, robot: str, cart: Optional[str] = None
-    ) -> None:
+    @staticmethod
+    def update_location(location: str, robot: str, cart: Optional[str] = None) -> None:
         """Update location of robot and cart in ldb."""  #
-        with SQLite3Access(self.ldb_filepath) as cursor:
+        with SQLite3Access() as cursor:
             cursor.execute(
                 f"UPDATE robot_info SET robot_location = '{location}'"
                 f" WHERE name = '{robot}';"
@@ -220,11 +215,12 @@ class DatabaseAccess:
                     f" WHERE name = '{cart}';"
                 )
 
+    @classmethod
     def update_session_status(
-        self, charging_session_id: int, charging_session_status: str
+        cls, charging_session_id: int, charging_session_status: str
     ) -> None:
         """Update charging_session_status for charging_session_id in ldb."""
-        with self.get() as cursor:
+        with cls.get() as cursor:
             cursor.execute(
                 f"UPDATE orders_in SET charging_session_status = '{charging_session_status}'"
                 f" WHERE charging_session_id = '{charging_session_id}';"
@@ -234,7 +230,8 @@ class DatabaseAccess:
                 f" WHERE charging_session_id = '{charging_session_id}';"
             )
 
-    def update_battery(self, table: str, battery_id: str, **kwargs: object) -> None:
+    @staticmethod
+    def update_battery(table: str, battery_id: str, **kwargs: object) -> None:
         """Update table for Battry_ID in lsv_db as well as automatically update column 'last_change'."""
         sql_operation = f"UPDATE {table} SET last_change = '{datetime_str()}'"
         for key, value in kwargs.items():
@@ -249,8 +246,7 @@ class DatabaseAccess:
 
 
 if __name__ == "__main__":
-    access = DatabaseAccess()
-    bookings = access.fetch_updated_bookings(ALL_BOOKING_HEADERS)
+    bookings = LDB.fetch_updated_bookings(ALL_BOOKING_HEADERS)
     print(bookings)
     if bookings:
         print(bookings[-1]["charging_session_status"])

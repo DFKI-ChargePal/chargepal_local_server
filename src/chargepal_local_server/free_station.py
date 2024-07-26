@@ -1,6 +1,6 @@
 from typing import Dict, Iterable, Optional, List, Set, Tuple, Union
 from collections import defaultdict
-from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.layout import Layout
 import os
 import re
@@ -74,9 +74,7 @@ def search_free_station(robot_name: str, station_prefix: str) -> str:
                     blocked_stations.add(get_station_name(value, station_prefix))
 
         # Choose the first available station that is not in the robot's blocker.
-        station_count = DatabaseAccess().fetch_env_count(
-            f"{station_prefix.lower()}names"
-        )
+        station_count = LDB.fetch_env_count(f"{station_prefix.lower()}names")
         free_station = ""
         best_distance = float("inf")
         for station_number in range(1, station_count + 1):

@@ -3,7 +3,7 @@ import os
 import shutil
 from sqlmodel import Session, select
 from chargepal_local_server import debug_sqlite_db
-from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.create_ldb_orders import create_sample_booking
 from chargepal_local_server.create_pdb import create_default_db
 from chargepal_local_server.pdb_interfaces import Cart, Robot, pdb_engine
@@ -15,21 +15,18 @@ def get_absolute_filepath(relative_filepath: str) -> str:
 
 
 def test_database_consistency() -> None:
-    access = DatabaseAccess()
-    env_infos = access.fetch_env_infos()
+    env_infos = LDB.fetch_env_infos()
     robot_infos = debug_sqlite_db.select("robot_info")
     cart_infos = debug_sqlite_db.select("cart_info")
     robot_count = len(robot_infos)
     cart_count = len(cart_infos)
     assert (
         len(env_infos["robot_names"])
-        == access.fetch_env_count("robot_names")
+        == LDB.fetch_env_count("robot_names")
         == robot_count
     ), f"Inconsistent robot count in env_info ({env_infos['robot_names']}) and robot_info ({robot_infos})."
     assert (
-        len(env_infos["cart_names"])
-        == access.fetch_env_count("cart_names")
-        == cart_count
+        len(env_infos["cart_names"]) == LDB.fetch_env_count("cart_names") == cart_count
     ), f"Inconsistent cart count in env_info ({env_infos['cart_names']}) and cart_info ({cart_count})."
     with Session(pdb_engine) as session:
         robots = session.exec(select(Robot)).fetchall()

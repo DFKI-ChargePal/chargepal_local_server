@@ -5,7 +5,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from datetime import datetime, timedelta
 from enum import IntEnum
 from sqlmodel import Session, select
-from chargepal_local_server.access_ldb import DatabaseAccess
+from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.battery_communication import UpdateManager
 from chargepal_local_server.free_station import search_free_station
 from chargepal_local_server.layout import Layout
@@ -80,8 +80,7 @@ def get_list_str_of_dict(entries: Dict[str, str]) -> str:
 
 
 class Planner:
-    def __init__(self, ldb_filepath: Optional[str] = None) -> None:
-        self.access = DatabaseAccess(ldb_filepath)
+    def __init__(self) -> None:
         self.session = Session(pdb_engine)
         self.battery_manager = UpdateManager(
             {f"BAT_{number}": f"Battery_DUS_{number:02d}" for number in range(1, 7)}
@@ -105,7 +104,7 @@ class Planner:
         # Manage current states of plug-in jobs for bookings.
         self.plugin_states: Dict[int, PlugInState] = {}
         # Delete existing bookings from the database for development phase.
-        self.access.delete_bookings()
+        LDB.delete_bookings()
         # Store whether planner received updated bookings.
         self.bookings_updated = False
         # Store job requests from job for synchroneous handling.
@@ -295,11 +294,11 @@ class Planner:
                     station.reservation == job.cart_name
                 ), f"{station} was not reserved for {job.cart_name}."
                 station.reservation = None
-            self.access.update_location(job.target_station, robot_name, job.cart_name)
+            LDB.update_location(job.target_station, robot_name, job.cart_name)
             # Update charging_session_status.
             if job.type == JobType.BRING_CHARGER:
                 self.plugin_states[job.booking_id] = PlugInState.SUCCESS
-                self.access.update_session_status(job.booking_id, "plugin_success")
+                LDB.update_session_status(job.booking_id, "plugin_success")
             elif job.type == JobType.STOW_CHARGER:
                 # Note: Assume cart is always available for development
                 #  until charger can confirm it in reality.
@@ -338,9 +337,7 @@ class Planner:
                         booking.charging_session_status, BookingState.CHECKED_IN
                     ), booking
                     booking.charging_session_status = BookingState.CHECKED_IN
-                    self.access.update_session_status(
-                        cart.booking_id, BookingState.CHECKED_IN
-                    )
+                    LDB.update_session_status(cart.booking_id, BookingState.CHECKED_IN)
                     cart.booking_id = None
                     logging.debug(f"{booking} reset to checked-in.")
                 cart = self.get_cart(job.cart_name)
@@ -397,7 +394,7 @@ class Planner:
                 )  # Transition J0
                 logging.info(f"{job} created.")
                 booking.charging_session_status = BookingState.SCHEDULED
-                self.access.update_session_status(
+                LDB.update_session_status(
                     booking_id, BookingState.SCHEDULED
                 )  # Transition B1
                 logging.debug(f"{booking} scheduled.")
@@ -651,9 +648,7 @@ class Planner:
         plugin_state = self.plugin_states[booking_id]
         if plugin_state == PlugInState.BRING_CHARGER:
             self.plugin_states[booking_id] = PlugInState.ROBOT_READY2PLUG
-            self.access.update_session_status(
-                booking_id, BookingState.ROBOT_READY_TO_PLUG
-            )
+            LDB.update_session_status(booking_id, BookingState.ROBOT_READY_TO_PLUG)
             logging.debug(f"{booking}'s robot is ready to plug.")
         elif plugin_state == PlugInState.BEV_PENDING:
             self.plugin_states[booking_id] = PlugInState.PLUG_IN
