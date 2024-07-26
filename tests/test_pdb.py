@@ -22,11 +22,15 @@ def test_database_consistency() -> None:
     robot_count = len(robot_infos)
     cart_count = len(cart_infos)
     assert (
-        len(env_infos["robot_names"]) == robot_count
-    ), f"Robot count in env_info ({env_infos['robot_names']}) does not match with robot_info ({robot_infos})."
+        len(env_infos["robot_names"])
+        == access.fetch_env_count("robot_names")
+        == robot_count
+    ), f"Inconsistent robot count in env_info ({env_infos['robot_names']}) and robot_info ({robot_infos})."
     assert (
-        len(env_infos["cart_names"]) == cart_count
-    ), f"Cart count in env_info ({env_infos['cart_names']}) does not match with cart_info ({cart_count})."
+        len(env_infos["cart_names"])
+        == access.fetch_env_count("cart_names")
+        == cart_count
+    ), f"Inconsistent cart count in env_info ({env_infos['cart_names']}) and cart_info ({cart_count})."
     with Session(pdb_engine) as session:
         robots = session.exec(select(Robot)).fetchall()
         carts = session.exec(select(Cart)).fetchall()
@@ -73,5 +77,5 @@ def test_pdb_update() -> None:
 
 
 if __name__ == "__main__":
-    # test_database_consistency()
+    test_database_consistency()
     test_pdb_update()

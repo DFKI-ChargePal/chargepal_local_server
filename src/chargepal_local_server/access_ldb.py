@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import Dict, Iterable, List, Optional, Type
+from typing import Dict, Iterable, List, Optional, Type, Union
 from types import TracebackType
 from datetime import datetime, timedelta
 from chargepal_local_server.pdb_interfaces import to_str
@@ -9,6 +9,9 @@ import os
 import re
 import sqlite3
 import yaml
+
+
+MYSQL_CONFIG_FILEPATH = os.path.expanduser("~/.my.cnf")
 
 
 ALL_BOOKING_HEADERS = (
@@ -110,7 +113,7 @@ class SQLite3Access:
 class MySQLAccess:
     def __init__(self) -> None:
         self.connection = mysql.connector.connect(
-            read_default_file=os.path.expanduser("~/.my.cnf"),
+            read_default_file=MYSQL_CONFIG_FILEPATH,
             host="localhost",
             database="LSV0002_DB",
         )
@@ -128,6 +131,10 @@ class MySQLAccess:
         self.connection.commit()
         self.connection.close()
 
+    @staticmethod
+    def is_configured() -> bool:
+        return os.path.isfile(MYSQL_CONFIG_FILEPATH)
+
 
 class DatabaseAccess:
     def __init__(self, ldb_filepath: Optional[str] = None) -> None:
@@ -136,13 +143,14 @@ class DatabaseAccess:
             if ldb_filepath
             else os.path.join(os.path.dirname(__file__), "db/ldb.db")
         )
-        try:
-            with MySQLAccess():
-                pass
-        except mysql.connector.errors.Error:
-            print(
-                f"Warning: No MySQL database found, thus using '{self.ldb_filepath}' instead!"
-            )
+
+    def get(self) -> Union[SQLite3Access, MySQLAccess]:
+        """Return a MySQLAccess if the MySQL config file exists, else a SQLite3Access."""
+        return (
+            MySQLAccess()
+            if MySQLAccess.is_configured()
+            else SQLite3Access(self.ldb_filepath)
+        )
 
     def fetch_by_first_header(
         self, table: str, headers: Iterable[str]
@@ -151,7 +159,7 @@ class DatabaseAccess:
         Return from ldb a dict for the first header in each row
         consisting of the remaining headers and entries.
         """
-        with SQLite3Access(self.ldb_filepath) as cursor:
+        with self.get() as cursor:
             cursor.execute(f"SELECT {', '.join(headers)} FROM {table};")
             return {
                 entries[0]: {
@@ -162,45 +170,40 @@ class DatabaseAccess:
 
     def fetch_env_infos(self) -> Dict[str, List[str]]:
         """Return a dict of names and values from env_info in ldb."""
-        with SQLite3Access(self.ldb_filepath) as cursor:
+        with self.get() as cursor:
             cursor.execute("SELECT name, value FROM env_info;")
             return {name: yaml.safe_load(value) for name, value in cursor.fetchall()}
+
+    def fetch_env_count(self, name: str) -> int:
+        """Return the count for name from env_info in ldb."""
+        with self.get() as cursor:
+            cursor.execute(f"SELECT count FROM env_info WHERE name = '{name}';")
+            return int(cursor.fetchone()[0])
 
     def fetch_updated_bookings(
         self, headers: Iterable[str], threshold: datetime = datetime.min
     ) -> List[Dict[str, object]]:
         """
-        Return from orders_in in lsv_db a dict of headers and entries
+        Return from orders_in in ldb a dict of headers and entries
         for which last_change is greater than or equal to threshold.
 
         Note: You must handle updates within the same second.
         """
-        sql_operation = (
-            f"SELECT {', '.join(headers)} FROM orders_in"
-            f" WHERE last_change >= '{threshold}';"
-        )
-        try:
-            with MySQLAccess() as cursor:
-                cursor.execute(sql_operation)
-                all_entries = cursor.fetchall()
-        except mysql.connector.errors.Error:
-            with SQLite3Access(self.ldb_filepath) as cursor:
-                cursor.execute(sql_operation)
-                all_entries = cursor.fetchall()
+        with self.get() as cursor:
+            cursor.execute(
+                f"SELECT {', '.join(headers)} FROM orders_in"
+                f" WHERE last_change >= '{threshold}';"
+            )
+            all_entries = cursor.fetchall()
         return [
             {header: parse_any(entry) for header, entry in zip(headers, entries)}
             for entries in all_entries
         ]
 
     def delete_bookings(self) -> None:
-        """Delete all bookings from orders_in in lsv_db."""
-        sql_operation = "DELETE FROM orders_in"
-        try:
-            with MySQLAccess() as cursor:
-                cursor.execute(sql_operation)
-        except mysql.connector.errors.Error:
-            with SQLite3Access(self.ldb_filepath) as cursor:
-                cursor.execute(sql_operation)
+        """Delete all bookings from orders_in in ldb."""
+        with self.get() as cursor:
+            cursor.execute("DELETE FROM orders_in")
 
     def update_location(
         self, location: str, robot: str, cart: Optional[str] = None
@@ -220,23 +223,16 @@ class DatabaseAccess:
     def update_session_status(
         self, charging_session_id: int, charging_session_status: str
     ) -> None:
-        """Update charging_session_status for charging_session_id in lsv_db."""
-        sql_status_operation = (
-            f"UPDATE orders_in SET charging_session_status = '{charging_session_status}'"
-            f" WHERE charging_session_id = '{charging_session_id}';"
-        )
-        sql_change_operation = (
-            f"UPDATE orders_in SET last_change = '{datetime_str()}'"
-            f" WHERE charging_session_id = '{charging_session_id}';"
-        )
-        try:
-            with MySQLAccess() as cursor:
-                cursor.execute(sql_status_operation)
-                cursor.execute(sql_change_operation)
-        except mysql.connector.errors.Error:
-            with SQLite3Access(self.ldb_filepath) as cursor:
-                cursor.execute(sql_status_operation)
-                cursor.execute(sql_change_operation)
+        """Update charging_session_status for charging_session_id in ldb."""
+        with self.get() as cursor:
+            cursor.execute(
+                f"UPDATE orders_in SET charging_session_status = '{charging_session_status}'"
+                f" WHERE charging_session_id = '{charging_session_id}';"
+            )
+            cursor.execute(
+                f"UPDATE orders_in SET last_change = '{datetime_str()}'"
+                f" WHERE charging_session_id = '{charging_session_id}';"
+            )
 
     def update_battery(self, table: str, battery_id: str, **kwargs: object) -> None:
         """Update table for Battry_ID in lsv_db as well as automatically update column 'last_change'."""

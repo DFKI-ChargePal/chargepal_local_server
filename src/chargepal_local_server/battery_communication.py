@@ -27,13 +27,11 @@ class UpdateManager:
         sql_operation = f"SELECT Battry_ID, State_bat_mod_ERROR FROM CAN_MSG_RX_LIVE WHERE last_change >= '{self.last_time}';"
         self.last_time = datetime.now()
         updated_states: Dict[str, str] = {}
-        try:
+        if MySQLAccess.is_configured():
             with MySQLAccess() as cursor:
                 cursor.execute(sql_operation)
                 for battery_id, state in cursor.fetchall():
                     updated_states[self.battery_names[battery_id]] = state
-        except mysql.connector.errors.Error:
-            pass
         self.battery_states.update(updated_states)
         return updated_states
 
@@ -49,10 +47,11 @@ def read_data(table_name: str, battery_name: str, column_name: str) -> Union[str
     sql = MySQLAccess()
     query = f"SELECT {column_name} FROM {table_name} WHERE Battry_ID = %s"
     sql.cursor.execute(query, (battery_name,))
-    result = sql.cursor.fetchone()
-    return result[0]
-    
-def check_feedback(cart_name, msg_to_check)->bool:
+    result = sql.cursor.fetchone()[0]
+    return result
+
+
+def check_feedback(cart_name, msg_to_check) -> bool:
     feedback = False
     time_passed = 0
     feedback_start_time = datetime.now()
