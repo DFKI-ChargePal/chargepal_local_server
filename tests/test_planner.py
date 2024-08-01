@@ -121,7 +121,6 @@ def test_bring_and_recharge() -> None:
     monitoring = Monitoring(SCENARIO2)
     with Environment(SCENARIO2.config) as environment:
         client = environment.robot_clients["ChargePal1"]
-        cart1 = environment.planner.get_cart("BAT_1")
         # Book and let car appear.
         environment.handle_events(monitoring.get_next_events())
         charging_session_ids = [
@@ -170,9 +169,9 @@ def test_bring_and_recharge() -> None:
         monitoring.update_car_charged("ADS_1")
         # Bring BAT_2 to BWS_1.
         job = environment.wait_for_job(client, JobType.STOW_CHARGER)
-        assert job.target_station == "BWS_1"
+        assert job.target_station == "BWS_2", job
         status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
-        assert status == "Success"
+        assert status == "Success", status
         client.update_job_monitor("STOW_CHARGER", status)
 
         environment.handle_events(monitoring.get_next_events())
@@ -182,9 +181,10 @@ def test_bring_and_recharge() -> None:
         client.update_job_monitor("RECHARGE_SELF", "Success")
 
         # Exchange carts between waiting and charging stations.
-        environment.planner.handle_charger_update(cart1, ChargerCommand.STOP_RECHARGING)
+        cart2 = environment.planner.get_cart("BAT_2")
+        environment.planner.handle_charger_update(cart2, ChargerCommand.STOP_RECHARGING)
         job = environment.wait_for_job(client, JobType.STOW_CHARGER)
-        assert job.target_station == "BWS_2"
+        assert job.target_station == "BWS_1"
         status = monitoring.get_job_status("STOW_CHARGER", job.target_station)
         assert status == "Success"
         client.update_job_monitor("STOW_CHARGER", status)

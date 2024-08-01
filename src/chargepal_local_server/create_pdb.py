@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
-from sqlmodel import Session, delete
+from sqlmodel import Session, delete, update
 from pscedev import Config
+from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
     Booking,
     Cart,
+    Distance,
     Job,
     Robot,
     Station,
     pdb_engine,
 )
+
+
+DATABASE_STATION_NAMES = list(Distance.__annotations__.keys())[1:]
 
 
 def create_robot(name: str, location: str) -> Robot:
@@ -124,8 +129,21 @@ def add_default_BCSs(session: Session, count: int) -> None:
 def clear_db() -> None:
     """Clear all tables in the pdb."""
     with Session(pdb_engine) as session:
-        for table in (Robot, Cart, Station, Job, Booking):
+        for table in (Robot, Cart, Distance, Station, Job, Booking):
             session.exec(delete(table))
+        for station_name in DATABASE_STATION_NAMES:
+            session.add(Distance(start=station_name))
+        for source in DATABASE_STATION_NAMES:
+            session.exec(
+                update(Distance)
+                .values(
+                    **{
+                        target: Layout.calculate_distance(source, target)
+                        for target in DATABASE_STATION_NAMES
+                    }
+                )
+                .where(Distance.start == source)
+            )
         session.commit()
 
 

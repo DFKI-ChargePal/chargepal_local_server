@@ -156,6 +156,20 @@ class Booking(SQLModel, table=True):
         )
 
 
+class Distance(SQLModel, table=True):
+    start: str = Field(primary_key=True)
+    ADS_1: float = 0.0
+    ADS_2: float = 0.0
+    ADS_3: float = 0.0
+    ADS_4: float = 0.0
+    BCS_1: float = 0.0
+    BCS_2: float = 0.0
+    BWS_1: float = 0.0
+    BWS_2: float = 0.0
+    RBS_1: float = 0.0
+    RBS_2: float = 0.0
+
+
 pdb_filepath = os.path.join(os.path.dirname(__file__), "db/pdb.db")
 pdb_engine = create_engine(f"sqlite:///{pdb_filepath}")
 SQLModel.metadata.create_all(pdb_engine)
