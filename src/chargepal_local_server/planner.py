@@ -390,6 +390,8 @@ class Planner:
                         booking_id=booking_id,
                         currently_assigned=False,
                         target_station=target_station,
+                        charging_type=booking.BEV_slot_planned,
+                        port_location=booking.BEV_port_location,
                     )
                 )  # Transition J0
                 logging.info(f"{job} created.")
@@ -625,7 +627,7 @@ class Planner:
             job_details = {
                 "job_id": job.id,
                 "job_type": job.type,
-                "charging_type": "AC",
+                "charging_type": job.charging_type,
                 "robot_name": robot_name,
                 "cart": job.cart_name,
                 "source_station": job.source_station,
