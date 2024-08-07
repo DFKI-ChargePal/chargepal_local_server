@@ -37,7 +37,7 @@ def create_cart(name: str, location: str) -> Cart:
         name=name,
         cart_location=location,
         booking_id=None,
-        plugged=None,
+        plugged=False,
         action_state=None,
         mode_response=None,
         state_of_charge=None,

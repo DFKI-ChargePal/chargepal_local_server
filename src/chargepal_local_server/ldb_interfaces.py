@@ -23,7 +23,7 @@ class Cart_info(SQLModel, table=True):
     name: str = Field(primary_key=True)
     cart_location: str
     robot_on_cart: Optional[str]
-    plugged: Optional[str]
+    plugged: bool
     action_state: Optional[str]
     error_count: int
 

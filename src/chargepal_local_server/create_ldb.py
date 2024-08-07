@@ -30,7 +30,7 @@ def create_cart_info(name: str, location: str) -> Cart_info:
         name=name,
         cart_location=location,
         robot_on_cart=None,
-        plugged=None,
+        plugged=False,
         action_state=None,
         error_count=0,
     )

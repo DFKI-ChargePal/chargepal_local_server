@@ -30,7 +30,7 @@ class Cart(SQLModel, table=True):
     name: str = Field(primary_key=True)
     cart_location: str
     booking_id: Optional[int]
-    plugged: Optional[str]
+    plugged: bool
     action_state: Optional[str]
     mode_response: Optional[str]
     state_of_charge: Optional[str]
