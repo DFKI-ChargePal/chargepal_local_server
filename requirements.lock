@@ -6,6 +6,8 @@
 #   features: []
 #   all-features: false
 #   with-sources: false
+#   generate-hashes: false
+#   universal: false
 
 -e file:.
 annotated-types==0.6.0
@@ -18,9 +20,11 @@ grpcio-tools==1.62.1
     # via chargepal-local-server
 mysql-connector-python==8.3.0
     # via chargepal-local-server
+paho-mqtt==2.1.0
+    # via chargepal-local-server
 protobuf==4.25.3
     # via grpcio-tools
-pscedev @ git+https://git.ni.dfki.de/chargepal/system-integration/pscedev.git
+pscedev @ git+https://git.ni.dfki.de/chargepal/system-integration/pscedev.git@66027818175bf1879e66be1ce51d9f5e74f7f917
     # via chargepal-local-server
 pydantic==2.6.4
     # via sqlmodel
@@ -28,6 +32,8 @@ pydantic-core==2.16.3
     # via pydantic
 pyyaml==6.0.1
     # via chargepal-local-server
+setuptools==69.2.0
+    # via grpcio-tools
 sqlalchemy==2.0.28
     # via sqlmodel
 sqlmodel==0.0.16
@@ -36,5 +42,3 @@ typing-extensions==4.10.0
     # via pydantic
     # via pydantic-core
     # via sqlalchemy
-setuptools==69.2.0
-    # via grpcio-tools
