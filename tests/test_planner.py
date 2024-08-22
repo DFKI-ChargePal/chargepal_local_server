@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 """
 Test script to test planner in custom environments.
 
@@ -7,7 +8,6 @@ Execution and message polling is accelerated a lot, so the tests
 are not suited as real-time tests.
 """
 
-#!/usr/bin/env python3
 from typing import Iterable, Optional, Type
 from types import TracebackType
 from concurrent import futures
