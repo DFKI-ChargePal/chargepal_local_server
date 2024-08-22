@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
-from chargepal_local_server.access_ldb import LDB
+from chargepal_local_server.access_ldb import LDB, MySQLAccess
 
 
 def create_sample_booking(
@@ -49,7 +49,9 @@ def create_sample_booking(
 def create_table() -> bool:
     with LDB.get() as cursor:
         cursor.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name = 'orders_in';"
+            "SHOW TABLES LIKE 'orders_in';"
+            if MySQLAccess.is_configured()
+            else "SELECT name FROM sqlite_master WHERE type='table' AND name = 'orders_in';"
         )
         if cursor.fetchall():
             return False
