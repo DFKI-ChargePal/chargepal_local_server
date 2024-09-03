@@ -193,6 +193,7 @@ class Planner:
         if job.target_station:
             station = self.get_station(job.target_station)
             station.reservation = None
+            station.available = True
 
     def pop_nearest_cart(self, location: str, charge: float) -> Optional[Cart]:
         """Find nearest available cart to location which can provide charge."""
@@ -538,6 +539,7 @@ class Planner:
                         self.assign_job(job, robot.name)  # Transition J1
                         job.cart_name = cart.name
                         job.source_station = cart.cart_location
+                        self.get_station(job.target_station).available = False
                         cart.booking_id = job.booking_id
                         self.plugin_states[job.booking_id] = PlugInState.BRING_CHARGER
             elif job.type == JobType.RETRIEVE_CHARGER:
@@ -554,6 +556,7 @@ class Planner:
                     )
                 # Note: In a real setup, there should always exist at least a BWS as target_station.
                 assert target_station, "No target station available."
+                target_station.available = False
                 self.assign_job(job, robot.name)  # Transition J3
                 if target_station.station_name.startswith("BCS_"):
                     job.type = JobType.RECHARGE_CHARGER
@@ -581,6 +584,7 @@ class Planner:
                 target_station = self.get_station(
                     search_free_station(robot.name, "BWS_")
                 )
+                target_station.available = False
                 job.target_station = target_station.station_name
                 self.assign_job(job, robot.name)
             elif job.type == JobType.RECHARGE_CHARGER:
@@ -589,6 +593,7 @@ class Planner:
                 target_station = self.pop_nearest_station(job.source_station)
                 if target_station:
                     assert target_station.station_name.startswith("BCS_")
+                    target_station.available = False
                     job.target_station = target_station.station_name
                     robot = self.pop_nearest_robot(job.source_station)
                     assert robot, job
