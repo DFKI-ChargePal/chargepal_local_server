@@ -308,18 +308,20 @@ class Planner:
                 #  until charger can confirm it in reality.
                 cart = self.get_cart(job.cart_name)
                 cart.available = True
-                # Immediately create a recharge job for cart.
-                new_job = self.add_new_job(
-                    Job(
-                        type=JobType.RECHARGE_CHARGER,
-                        state=JobState.OPEN,
-                        schedule=datetime.now(),
-                        currently_assigned=False,
-                        cart_name=cart.name,
-                        source_station=cart.cart_location,
+                # Note: In a real setup, there should always exist a BCS.
+                if self.BCS_count > 0:
+                    # Immediately create a recharge job for cart.
+                    new_job = self.add_new_job(
+                        Job(
+                            type=JobType.RECHARGE_CHARGER,
+                            state=JobState.OPEN,
+                            schedule=datetime.now(),
+                            currently_assigned=False,
+                            cart_name=cart.name,
+                            source_station=cart.cart_location,
+                        )
                     )
-                )
-                logging.info(f"{new_job} created.")
+                    logging.info(f"{new_job} created.")
             return True
         if job_status == "Failure":
             logging.warning(f"Warning: {job} for {robot_name} failed!")
@@ -586,6 +588,7 @@ class Planner:
                 assert job.cart_name and job.source_station, job
                 target_station = self.pop_nearest_station(job.source_station)
                 if target_station:
+                    assert target_station.station_name.startswith("BCS_")
                     job.target_station = target_station.station_name
                     robot = self.pop_nearest_robot(job.source_station)
                     assert robot, job
