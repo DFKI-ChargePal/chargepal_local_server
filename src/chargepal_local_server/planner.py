@@ -286,6 +286,10 @@ class Planner:
                 f"{robot_name} sent update of different job '{job_type}'"
                 f" than its current job '{job.type}'."
             )
+            if job.source_station:
+                # Make source station available again.
+                station = self.get_station(job.source_station)
+                station.available = True
             # Update locations of robot and potentially cart.
             assert job.target_station
             station = self.get_station(job.target_station)
