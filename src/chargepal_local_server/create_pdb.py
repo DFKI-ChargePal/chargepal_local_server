@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
+from typing import List
 from sqlmodel import Session, delete, update
 from pscedev import Config
+from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
     Booking,
@@ -52,6 +54,15 @@ def create_cart(name: str, location: str) -> Cart:
     )
 
 
+def create_station(name: str, available: bool = True) -> Station:
+    return Station(
+        station_name=name,
+        station_pose="",
+        reservation=None,
+        available=available,
+    )
+
+
 def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> None:
     """Add count robots to session. If with_RBSs is true, also add an RBS per robot."""
     for number in range(1, count + 1):
@@ -59,14 +70,7 @@ def add_default_robots(session: Session, count: int, with_RBSs: bool = True) -> 
         robot_location = f"RBS_{number}"
         session.add(create_robot(robot_name, robot_location))
         if with_RBSs:
-            session.add(
-                Station(
-                    station_name=f"RBS_{number}",
-                    station_pose="",
-                    reservation=None,
-                    available=False,
-                )
-            )
+            session.add(create_station(f"RBS_{number}", available=False))
 
 
 def add_default_carts(
@@ -81,49 +85,21 @@ def add_default_carts(
         cart_location = f"BWS_{number}"
         session.add(create_cart(cart_name, cart_location))
         if with_BWSs:
-            session.add(
-                Station(
-                    station_name=f"BWS_{number}",
-                    station_pose="",
-                    reservation=None,
-                    available=False,
-                )
-            )
+            session.add(create_station(f"BWS_{number}", available=False))
         if with_BCSs:
-            session.add(
-                Station(
-                    station_name=f"BCS_{number}",
-                    station_pose="",
-                    reservation=None,
-                    available=True,
-                )
-            )
+            session.add(create_station(f"BCS_{number}"))
 
 
 def add_default_ADSs(session: Session, count: int) -> None:
     """Add count ADSs to session."""
     for number in range(1, count + 1):
-        session.add(
-            Station(
-                station_name=f"ADS_{number}",
-                station_pose="",
-                reservation=None,
-                available=True,
-            )
-        )
+        session.add(create_station(f"ADS_{number}"))
 
 
 def add_default_BCSs(session: Session, count: int) -> None:
     """Add count BCSs to session."""
     for number in range(1, count + 1):
-        session.add(
-            Station(
-                station_name=f"BCS_{number}",
-                station_pose="",
-                reservation=None,
-                available=True,
-            )
-        )
+        session.add(create_station(f"BCS_{number}"))
 
 
 def clear_db() -> None:
@@ -157,28 +133,38 @@ def create_default_db() -> None:
         session.commit()
 
 
+def create_from_ldb() -> None:
+    """Clear pdb, then create robots, carts, and stations according to ldb."""
+    clear_db()
+    env_infos = LDB.fetch_env_infos()
+    with Session(pdb_engine) as session:
+        used_locations: List[str] = []
+        robot_infos = LDB.fetch_by_first_header(
+            "robot_info", ["name", "robot_location"]
+        )
+        for robot_name in env_infos["robot_names"]:
+            robot_location: str = robot_infos[robot_name]["robot_location"]
+            session.add(create_robot(robot_name, robot_location))
+            used_locations.append(robot_location)
+        cart_infos = LDB.fetch_by_first_header("cart_info", ["name", "cart_location"])
+        for cart_name in env_infos["cart_names"]:
+            cart_location: str = cart_infos[cart_name]["cart_location"]
+            session.add(create_cart(cart_name, cart_location))
+            used_locations.append(cart_location)
+        for station_names in ["rbs_names", "bws_names", "ads_names", "bcs_names"]:
+            for name in env_infos[station_names]:
+                session.add(create_station(name, available=name not in used_locations))
+        session.commit()
+
+
 def initialize_db(config: Config) -> None:
     """Initialize pdb with config."""
     clear_db()
     with Session(pdb_engine) as session:
         for station_name in config.ADS_names + config.BCS_names:
-            session.add(
-                Station(
-                    station_name=station_name,
-                    station_pose="",
-                    reservation=None,
-                    available=True,
-                )
-            )
+            session.add(create_station(station_name))
         for station_name in config.BWS_names + config.RBS_names:
-            session.add(
-                Station(
-                    station_name=station_name,
-                    station_pose="",
-                    reservation=None,
-                    available=False,
-                )
-            )
+            session.add(create_station(station_name, available=False))
         for robot_name, robot_location in config.robot_locations.items():
             session.add(create_robot(robot_name, robot_location))
         for cart_name, cart_location in config.cart_locations.items():
@@ -187,4 +173,4 @@ def initialize_db(config: Config) -> None:
 
 
 if __name__ == "__main__":
-    create_default_db()
+    create_from_ldb()
