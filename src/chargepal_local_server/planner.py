@@ -475,6 +475,7 @@ class Planner:
             ChargerCommand.BOOKING_FULFILLED,
         ):
             assert cart.booking_id, f"{cart} has no current booking."
+            booking = self.get_booking(cart.booking_id)
             job = self.add_new_job(
                 Job(
                     type=JobType.RETRIEVE_CHARGER,
@@ -482,9 +483,9 @@ class Planner:
                     schedule=datetime.now(),
                     currently_assigned=False,
                     cart_name=cart.name,
-                    source_station=self.get_booking(
-                        cart.booking_id
-                    ).actual_BEV_location,
+                    source_station=booking.actual_BEV_location,
+                    charging_type=booking.BEV_slot_planned,
+                    port_location=booking.BEV_port_location,
                 )
             )  # Transition J0
             logging.info(f"{job} created.")
