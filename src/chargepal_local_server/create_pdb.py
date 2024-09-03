@@ -152,7 +152,7 @@ def create_default_db() -> None:
     clear_db()
     with Session(pdb_engine) as session:
         add_default_robots(session, 1)
-        add_default_carts(session, 1, with_BCSs=True)
+        add_default_carts(session, 1)
         add_default_ADSs(session, 1)
         session.commit()
 

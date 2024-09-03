@@ -4,7 +4,7 @@ from chargepal_local_server.access_ldb import LDB, MySQLAccess
 
 
 def create_sample_booking(
-    drop_location: str = "021",
+    drop_location: str = "ADS_1",
     charging_session_status: str = "checked_in",
 ) -> None:
     with LDB.get() as cursor:
