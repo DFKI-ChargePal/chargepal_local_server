@@ -1,0 +1,28 @@
+
+default:
+  image: docker:25.0.5-git
+  services:
+    - docker:25.0.5-dind
+  before_script:
+    - apk update
+    - docker info
+    - docker buildx version
+
+stages:
+  - build
+
+
+build:
+  stage: build
+  variables:
+    IMAGE_TAG: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_SLUG
+    DOCKER_DRIVER: overlay2
+
+  script:
+    - docker run --privileged --rm tonistiigi/binfmt --install all
+    - docker login -u Docker -p $CHARGEPAL_ROOT_GROUP_ACCESS_TOKEN_KEY $CI_REGISTRY
+    - docker buildx create --use --platform=linux/amd64,linux/arm64 --name multi-platform-builder
+    - ls -R /etc/
+    #- systemctl daemon-reload
+    #- docker buildx inspect --bootstrap
+    - docker buildx build  --provenance=false --platform=linux/amd64,linux/arm64 --build-arg CI_DEPLOY_USER=gitlab-ci-token  --build-arg CI_DEPLOY_PASSWORD=$CI_JOB_TOKEN --push -t $IMAGE_TAG -f docker/Dockerfile.noetic --progress=plain .

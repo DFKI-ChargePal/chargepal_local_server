@@ -1,0 +1,23 @@
+version: '2'
+
+networks:
+  chargepal_docker_network:
+    driver: bridge
+    name: chargepal_docker_network
+
+services:
+  chargepal_local_server:
+    image: git.ni.dfki.de:5050/chargepal/system-integration/server-packages/chargepal_local_server:feature-add-docker
+    tty: true
+    stdin_open: true
+    ports:
+      - 8080:8080
+      - 50059:50059
+    restart: always
+    networks:
+      - chargepal_docker_network
+    environment:
+      - MYSQL_CONFIG_PATH=${MYSQL_CONFIG_PATH}
+    volumes:
+      - .my.cnf:/root/.my.cnf
+  
