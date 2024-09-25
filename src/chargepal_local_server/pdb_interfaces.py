@@ -47,7 +47,7 @@ class Cart(SQLModel, table=True):
 class Station(SQLModel, table=True):
     station_name: str = Field(primary_key=True)
     station_pose: str
-    reservation: Optional[int]
+    reservation: Optional[str]
     available: bool
 
 
