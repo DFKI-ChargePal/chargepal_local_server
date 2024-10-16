@@ -103,7 +103,7 @@ def monitor_result(
 
 def wakeup(cart_name: str) -> bool:
     battery_error_mode = read_data(
-        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR_ERROR"
+        "CAN_MSG_RX_LIVE", cart_name, "State_bat_mod_ERROR"
     )
     mode_bat_only = read_data("CAN_MSG_RX_LIVE", cart_name, "Mode_Bat_only")
     success = False
