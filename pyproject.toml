@@ -10,7 +10,6 @@ dependencies = [
     "grpcio-tools>=1.62.1",
     "mysql-connector-python>=8.3.0",
     "sqlmodel>=0.0.16",
-    "pscedev @ git+https://git.ni.dfki.de/chargepal/system-integration/pscedev.git",
     "paho-mqtt>=2.1.0",
 ]
 readme = "README.md"

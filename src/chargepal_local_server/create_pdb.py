@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from typing import List
 from sqlmodel import Session, delete, update
-from pscedev import Config
 from chargepal_local_server.access_ldb import LDB
 from chargepal_local_server.layout import Layout
 from chargepal_local_server.pdb_interfaces import (
@@ -13,6 +12,7 @@ from chargepal_local_server.pdb_interfaces import (
     Station,
     pdb_engine,
 )
+from chargepal_local_server.pscedev import Config
 
 
 DATABASE_STATION_NAMES = list(Distance.__annotations__.keys())[1:]

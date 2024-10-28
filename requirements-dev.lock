@@ -24,8 +24,6 @@ paho-mqtt==2.1.0
     # via chargepal-local-server
 protobuf==4.25.3
     # via grpcio-tools
-pscedev @ git+https://git.ni.dfki.de/chargepal/system-integration/pscedev.git@66027818175bf1879e66be1ce51d9f5e74f7f917
-    # via chargepal-local-server
 pydantic==2.6.4
     # via sqlmodel
 pydantic-core==2.16.3
