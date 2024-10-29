@@ -27,11 +27,11 @@ from chargepal_local_server.planner import (
     JobType,
     Planner,
 )
+from chargepal_local_server.pscedev.config import CONFIG_ALL_ONE, CONFIG_DEFAULT
+from chargepal_local_server.pscedev.scenario import SCENARIO2
+from chargepal_local_server.pscedev import BookingEvent, Config, Event, Monitoring
 from chargepal_local_server.server import CommunicationServicer
 from chargepal_client.core import Core
-from pscedev.config import CONFIG_ALL_ONE, CONFIG_DEFAULT
-from pscedev.scenario import SCENARIO2
-from pscedev import BookingEvent, Config, Event, Monitoring
 
 
 class Environment:

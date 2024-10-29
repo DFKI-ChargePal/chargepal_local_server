@@ -1,5 +1,5 @@
 FROM ubuntu:20.04
-#FROM ubuntu 
+#FROM ubuntu
 ARG PACKAGE_NAME=chargepal_local_server
 ARG TIMEZONE=Europe/berlin
 ARG CI_DEPLOY_USER
@@ -23,46 +23,44 @@ RUN apt-get update && apt-get -y --no-install-recommends install \
     python3-grpcio \
     supervisor \
     && apt-get -y autoremove \
-    && apt-get clean 
+    && apt-get clean
     # \
 
-    
-    
+
+
 ENV HOME /root
 COPY . ${HOME}/${PACKAGE_NAME}
 ENV MYSQL_CONFIG_PATH ${HOME}/.my.cnf
 
 
-WORKDIR ${HOME}/${PACKAGE_NAME} 
+WORKDIR ${HOME}/${PACKAGE_NAME}
 
 # save CI_DEPLOY_USER and CI_DEPLOY_PASSWORD to git credential store
 # THis will allow cloning without requesting a password.
 # TODO: Delete the credentials after build. (Security bridge)
-RUN git config --list 
+RUN git config --list
 RUN git config --global credential.helper store
 RUN echo  https://${CI_DEPLOY_USER}:${CI_DEPLOY_PASSWORD}@git.ni.dfki.de >> ~/.git-credentials
 RUN ln -s /usr/bin/python3 /usr/bin/python
-RUN python3 -m pip install --upgrade pip  
-# 
+RUN python3 -m pip install --upgrade pip
+#
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 
 # Clone chargepal monitor gui
 WORKDIR ${HOME}/
 RUN git clone https://${CI_DEPLOY_USER}:${CI_DEPLOY_PASSWORD}@git.ni.dfki.de/chargepal/system-integration/server-packages/chargepal_monitor_gui.git
 
-WORKDIR ${HOME}/${PACKAGE_NAME} 
+WORKDIR ${HOME}/${PACKAGE_NAME}
 RUN pip install uv
 RUN uv pip install --no-cache --system -r requirements.lock
 
 # Generate protobuf artefacts
 WORKDIR ${HOME}/${PACKAGE_NAME}/src
-RUN ./generate-proto 
+RUN ./generate-proto
 WORKDIR ${HOME}/${PACKAGE_NAME}/src/chargepal_local_server
-ENV PYTHONPATH="${PYTHONPATH}:${HOME}/${PACKAGE_NAME}/src/chargepal_local_server:${HOME}/${PACKAGE_NAME}/src" 
+ENV PYTHONPATH="${PYTHONPATH}:${HOME}/${PACKAGE_NAME}/src/chargepal_local_server:${HOME}/${PACKAGE_NAME}/src"
 RUN mkdir -p  logs
 #python3 -m grpc_tools.protoc -I. --python_out=. --pyi_out=. --grpc_python_out=. communication.proto
-
-#RUN git clone https://${CI_DEPLOY_USER}:${CI_DEPLOY_PASSWORD}@git.ni.dfki.de/chargepal/system-integration/pscedev.git
 
 
 # Add supervisord configuration to run and monitort multiple process in the container
@@ -72,4 +70,4 @@ RUN cp ${HOME}/${PACKAGE_NAME}/docker/supervisord.conf /etc/supervisor/conf.d/su
 
 EXPOSE 50059
 EXPOSE 8080
-CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"] 
+CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
